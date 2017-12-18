@@ -3,7 +3,6 @@ package com.baojie.zk.example.concurrent;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.LockSupport;
 import java.util.concurrent.locks.ReadWriteLock;
 
 /**
@@ -1491,7 +1490,7 @@ public class HaStampLock implements java.io.Serializable {
 
     static {
         try {
-            U = sun.misc.Unsafe.getUnsafe();
+            U = HaUnsafe.getUnsafe();
             Class<?> k = HaStampLock.class;
             Class<?> wk = WNode.class;
             STATE = U.objectFieldOffset
