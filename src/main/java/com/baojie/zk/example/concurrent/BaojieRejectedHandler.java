@@ -26,6 +26,11 @@ public abstract class BaojieRejectedHandler implements PoolRejectedHandler {
 
     }
 
+    @Override
+    public void rejectedExecution(Runnable r, HaThreadPool executor) {
+
+    }
+
     public String getName() {
         return name;
     }
