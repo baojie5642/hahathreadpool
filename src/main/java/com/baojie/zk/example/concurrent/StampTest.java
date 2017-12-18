@@ -1,7 +1,9 @@
 package com.baojie.zk.example.concurrent;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.LockSupport;
-import java.util.concurrent.locks.StampedLock;
 
 public class StampTest {
 
@@ -15,7 +17,7 @@ public class StampTest {
 
                 long readLong = lock.writeLock();
 
-                LockSupport.parkNanos(6100000000L);
+                LockSupport.parkNanos(TimeUnit.NANOSECONDS.convert(1, TimeUnit.HOURS));
 
                 lock.unlockWrite(readLong);
 
@@ -23,11 +25,20 @@ public class StampTest {
 
         }.start();
 
-        Thread.sleep(100);
+        Thread.sleep(10000);
+        List<Thread> threadslist=new ArrayList<>();
+        Thread ttt = null;
+        for (int i = 0; i < 32; ++i) {
 
-        for (int i = 0; i < 3; ++i)
+            ttt = new Thread(new OccupiedCPUReadThread(lock));
+            ttt.start();
+            threadslist.add(ttt);
+        }
+        Thread.sleep(30000);
 
-            new Thread(new OccupiedCPUReadThread(lock)).start();
+        for(Thread t:threadslist){
+            t.interrupt();
+        }
 
     }
 
@@ -45,9 +56,14 @@ public class StampTest {
 
             Thread.currentThread().interrupt();
 
-            long lockr = lock.readLock();
+            long lockr = 0;
+            try {
+                lockr = lock.readLock();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
 
-            System.out.println(Thread.currentThread().getName() + " get read lock");
+            System.out.println(Thread.currentThread().getName() + " get read lock=" + lockr);
 
             lock.unlockRead(lockr);
 
