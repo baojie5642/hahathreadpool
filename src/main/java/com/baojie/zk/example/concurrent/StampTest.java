@@ -9,6 +9,10 @@ public class StampTest {
 
     public static void main(String[] args) throws InterruptedException {
 
+
+        LockSupport.unpark(null);
+        Thread.sleep(10000);
+
         final HaStampLock lock = new HaStampLock();
 
         new Thread() {

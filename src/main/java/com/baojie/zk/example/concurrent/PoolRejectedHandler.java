@@ -10,4 +10,6 @@ public interface PoolRejectedHandler extends RejectedExecutionHandler {
 
     void rejectedExecution(Runnable r, HaThreadPool executor);
 
+    void rejectedExecution(Runnable r, ConcurrentPool executor);
+
 }

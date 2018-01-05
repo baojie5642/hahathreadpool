@@ -17,6 +17,11 @@ public abstract class BaojieRejectedHandler implements PoolRejectedHandler {
     }
 
     @Override
+    public void rejectedExecution(Runnable r, ConcurrentPool executor) {
+
+    }
+
+    @Override
     public void rejectedExecution(Runnable r, ThreadPoolExecutor executor) {
 
     }
