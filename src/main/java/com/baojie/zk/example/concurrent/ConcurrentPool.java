@@ -19,7 +19,7 @@ import java.util.concurrent.locks.LockSupport;
 import java.util.concurrent.locks.ReentrantLock;
 
 public class ConcurrentPool extends AbstractExecutorService {
-    private static final Logger log = LoggerFactory.getLogger(BaojieThreadPool.class);
+    private final Logger log = LoggerFactory.getLogger(ConcurrentPool.class);
     private final AtomicInteger ctl = new AtomicInteger(ctlOf(RUNNING, 0));
     private static final int COUNT_BITS = Integer.SIZE - 3;
     private static final int CAPACITY = (1 << COUNT_BITS) - 1;
