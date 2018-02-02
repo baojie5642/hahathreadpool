@@ -15,6 +15,7 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.AbstractQueuedSynchronizer;
 import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.LockSupport;
 import java.util.concurrent.locks.ReentrantLock;
 
 public class ConcurrentPool extends AbstractExecutorService {
@@ -65,7 +66,9 @@ public class ConcurrentPool extends AbstractExecutorService {
         } while (!compareAndDecrementWorkerCount(ctl.get()));
     }
 
-    private final BlockingQueue<Runnable> workQueue;
+    private final ConcurrentLinkedQueue<Runnable> workQueue = new ConcurrentLinkedQueue<>();
+
+    private final ConcurrentLinkedQueue<Worker> signQueue = new ConcurrentLinkedQueue<>();
 
     private final ReentrantLock mainLock = new ReentrantLock();
 
@@ -112,10 +115,12 @@ public class ConcurrentPool extends AbstractExecutorService {
             runWorker(this);
         }
 
+        @Override
         protected boolean isHeldExclusively() {
             return getState() != 0;
         }
 
+        @Override
         protected boolean tryAcquire(int unused) {
             if (compareAndSetState(0, 1)) {
                 setExclusiveOwnerThread(Thread.currentThread());
@@ -124,6 +129,7 @@ public class ConcurrentPool extends AbstractExecutorService {
             return false;
         }
 
+        @Override
         protected boolean tryRelease(int unused) {
             setExclusiveOwnerThread(null);
             setState(0);
@@ -187,7 +193,7 @@ public class ConcurrentPool extends AbstractExecutorService {
                 return;
             } else if (runStateAtLeast(c, TIDYING)) {
                 return;
-            } else if ((runStateOf(c) == SHUTDOWN && !workQueue.isEmpty())) {
+            } else if ((runStateOf(c) == SHUTDOWN && null != workQueue.peek())) {
                 return;
             }
             if (workerCountOf(c) != 0) {
@@ -274,9 +280,9 @@ public class ConcurrentPool extends AbstractExecutorService {
     }
 
     private List<Runnable> drainQueue() {
-        BlockingQueue<Runnable> q = workQueue;
+        ConcurrentLinkedQueue<Runnable> q = workQueue;
         ArrayList<Runnable> taskList = new ArrayList<Runnable>();
-        q.drainTo(taskList);
+        firstAdd(taskList, q);
         if (!q.isEmpty()) {
             for (Runnable r : q.toArray(new Runnable[0])) {
                 if (q.remove(r)) {
@@ -287,12 +293,24 @@ public class ConcurrentPool extends AbstractExecutorService {
         return taskList;
     }
 
+    private void firstAdd(ArrayList<Runnable> taskList, ConcurrentLinkedQueue<Runnable> q) {
+        Runnable r;
+        for (; ; ) {
+            r = q.poll();
+            if (null == r) {
+                return;
+            } else {
+                taskList.add(r);
+            }
+        }
+    }
+
     private boolean addWorker(Runnable firstTask, boolean core) {
         retry:
         for (; ; ) {
             int c = ctl.get();
             int rs = runStateOf(c);
-            if (rs >= SHUTDOWN && !(rs == SHUTDOWN && firstTask == null && !workQueue.isEmpty())) {
+            if (rs >= SHUTDOWN && !(rs == SHUTDOWN && firstTask == null && null != workQueue.peek())) {
                 return false;
             }
             for (; ; ) {
@@ -342,6 +360,7 @@ public class ConcurrentPool extends AbstractExecutorService {
                 }
             }
         } finally {
+            unParkFirst();
             if (!workerStarted) {
                 addWorkerFailed(w);
             }
@@ -380,7 +399,7 @@ public class ConcurrentPool extends AbstractExecutorService {
         if (runStateLessThan(c, STOP)) {
             if (!completedAbruptly) {
                 int min = allowCoreThreadTimeOut ? 0 : corePoolSize;
-                if (min == 0 && !workQueue.isEmpty()) {
+                if (min == 0 && null != workQueue.peek()) {
                     min = 1;
                 }
                 if (workerCountOf(c) >= min) {
@@ -391,32 +410,89 @@ public class ConcurrentPool extends AbstractExecutorService {
         }
     }
 
-    private Runnable getTask() {
+    private Runnable getTask(Worker w) {
         boolean timedOut = false;
         for (; ; ) {
             int c = ctl.get();
             int rs = runStateOf(c);
-            if (rs >= SHUTDOWN && (rs >= STOP || workQueue.isEmpty())) {
+            if (rs >= SHUTDOWN && (rs >= STOP || (workQueue.peek() == null))) {
                 decrementWorkerCount();
                 return null;
             }
             int wc = workerCountOf(c);
             boolean timed = allowCoreThreadTimeOut || wc > corePoolSize;
-            if ((wc > maximumPoolSize || ((timed && timedOut)) && (wc > 1 || workQueue.isEmpty()))) {
+            if ((wc > maximumPoolSize || ((timed && timedOut)) && (wc > 1 || (workQueue.peek() == null)))) {
                 if (compareAndDecrementWorkerCount(c)) {
                     return null;
                 }
                 continue;
             }
-            try {
-                Runnable r = timed ? workQueue.poll(keepAliveTime, TimeUnit.NANOSECONDS) : workQueue.take();
-                if (r != null) {
-                    return r;
-                }
-                timedOut = true;
-            } catch (InterruptedException retry) {
-                timedOut = false;
+            Runnable r;
+            r = pollTask();
+            if (null != r) {
+                return r;
             }
+            if (timed) {
+                waitTimed();
+                timedOut = checkStateAndClean(w);
+                if (timedOut) {
+                    r = pollTask();
+                    if (null != r) {
+                        return r;
+                    }
+                }
+            } else {
+                timedOut = normalPark(w);
+            }
+        }
+    }
+
+    private Runnable pollTask() {
+        return workQueue.poll();
+    }
+
+    private void waitTimed() {
+        LockSupport.parkNanos(TimeUnit.NANOSECONDS.convert(keepAliveTime, TimeUnit.NANOSECONDS));
+    }
+
+    private boolean normalPark(Worker w) {
+        signQueue.offer(w);
+        final Thread t = w.thread;
+        try {
+            if (null != t) {
+                LockSupport.park(t);
+            } else {
+                LockSupport.park();
+            }
+        } finally {
+            unParkFirst();
+        }
+        if (!checkStateAndClean(w)) {
+            return false;
+        } else {
+            return true;
+        }
+    }
+
+    private void unParkFirst() {
+        final Worker tw = signQueue.poll();
+        if (null != tw) {//&&!tw.isLocked()
+            final Thread t = tw.thread;
+            if (null != t) {
+                LockSupport.unpark(t);
+            }
+        }
+    }
+
+    private boolean checkStateAndClean(Worker w) {
+        final Thread t0 = w.thread;
+        String s0 = t0.getName();
+        final Thread t1 = Thread.currentThread();
+        String s1 = t1.getName();
+        if (Thread.currentThread().interrupted()) {
+            return false;
+        } else {
+            return true;
         }
     }
 
@@ -427,7 +503,7 @@ public class ConcurrentPool extends AbstractExecutorService {
         w.unlock();
         boolean completedAbruptly = true;
         try {
-            while (task != null || (task = getTask()) != null) {
+            while (task != null || (task = getTask(w)) != null) {
                 w.lock();
                 if ((runStateAtLeast(ctl.get(), STOP) || (Thread.interrupted() && runStateAtLeast(ctl.get(),
                         STOP))) && !wt.isInterrupted()) {
@@ -462,57 +538,31 @@ public class ConcurrentPool extends AbstractExecutorService {
         }
     }
 
-    public ConcurrentPool(int corePoolSize,
-            int maximumPoolSize,
-            long keepAliveTime,
-            TimeUnit unit,
-            BlockingQueue<Runnable> workQueue) {
-        this(corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue,
-                Executors.defaultThreadFactory(), defaultHandler);
+    public ConcurrentPool(int corePoolSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit) {
+        this(corePoolSize, maximumPoolSize, keepAliveTime, unit, Executors.defaultThreadFactory(), defaultHandler);
     }
 
-    public ConcurrentPool(int corePoolSize,
-            int maximumPoolSize,
-            long keepAliveTime,
-            TimeUnit unit,
-            BlockingQueue<Runnable> workQueue,
+    public ConcurrentPool(int corePoolSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit,
             ThreadFactory threadFactory) {
-        this(corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue,
-                threadFactory, defaultHandler);
+        this(corePoolSize, maximumPoolSize, keepAliveTime, unit, threadFactory, defaultHandler);
     }
 
-    public ConcurrentPool(int corePoolSize,
-            int maximumPoolSize,
-            long keepAliveTime,
-            TimeUnit unit,
-            BlockingQueue<Runnable> workQueue,
+    public ConcurrentPool(int corePoolSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit,
             PoolRejectedHandler handler) {
-        this(corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue,
-                Executors.defaultThreadFactory(), handler);
+        this(corePoolSize, maximumPoolSize, keepAliveTime, unit, Executors.defaultThreadFactory(), handler);
     }
 
-    public ConcurrentPool(int corePoolSize,
-            int maximumPoolSize,
-            long keepAliveTime,
-            TimeUnit unit,
-            BlockingQueue<Runnable> workQueue,
-            ThreadFactory threadFactory,
-            PoolRejectedHandler handler) {
-        if (corePoolSize < 0 ||
-                maximumPoolSize <= 0 ||
-                maximumPoolSize < corePoolSize ||
-                keepAliveTime < 0) {
+    public ConcurrentPool(int corePoolSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit,
+            ThreadFactory threadFactory, PoolRejectedHandler handler) {
+        if (corePoolSize < 0 || maximumPoolSize <= 0 || maximumPoolSize < corePoolSize || keepAliveTime < 0) {
             throw new IllegalArgumentException();
         }
-        if (workQueue == null || threadFactory == null || handler == null) {
+        if (threadFactory == null || handler == null) {
             throw new NullPointerException();
         }
-        this.acc = System.getSecurityManager() == null ?
-                null :
-                AccessController.getContext();
+        this.acc = System.getSecurityManager() == null ? null : AccessController.getContext();
         this.corePoolSize = corePoolSize;
         this.maximumPoolSize = maximumPoolSize;
-        this.workQueue = workQueue;
         this.keepAliveTime = unit.toNanos(keepAliveTime);
         this.threadFactory = threadFactory;
         this.handler = handler;
@@ -530,6 +580,7 @@ public class ConcurrentPool extends AbstractExecutorService {
             c = ctl.get();
         }
         if (isRunning(c) && workQueue.offer(command)) {
+            unParkFirst();
             int recheck = ctl.get();
             if (!isRunning(recheck) && remove(command)) {
                 reject(command);
@@ -537,7 +588,6 @@ public class ConcurrentPool extends AbstractExecutorService {
                 addWorker(null, false);
             }
         } else if (!addWorker(command, false)) {
-
             reject(command);
         }
     }
@@ -732,7 +782,7 @@ public class ConcurrentPool extends AbstractExecutorService {
         return unit.convert(keepAliveTime, TimeUnit.NANOSECONDS);
     }
 
-    public BlockingQueue<Runnable> getQueue() {
+    public ConcurrentLinkedQueue<Runnable> getQueue() {
         return workQueue;
     }
 
@@ -743,7 +793,7 @@ public class ConcurrentPool extends AbstractExecutorService {
     }
 
     public void purge() {
-        final BlockingQueue<Runnable> q = workQueue;
+        final ConcurrentLinkedQueue<Runnable> q = workQueue;
         try {
             Iterator<Runnable> it = q.iterator();
             while (it.hasNext()) {
