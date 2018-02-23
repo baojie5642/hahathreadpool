@@ -39,6 +39,7 @@ public class ConcurrentPoolTest implements Runnable{
 
     // error in GitHub, fixing
     // 过年回来git坏了，不知道什么问题，http://blog.csdn.net/ykttt1/article/details/47292821
+
     public static void main(String args[]){
         ConcurrentPool pool=new ConcurrentPool(1,4,10,TimeUnit.SECONDS,UnitedThreadFactory.create
                 ("concurrent_test"));
