@@ -29,7 +29,7 @@ public class ConcurrentPoolTest implements Runnable{
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
-            log.error("name="+name+", has print="+i);
+            log.error("name="+name+", has print="+i+"， 刘康博——2018.02.14……");
             if(i==26000){
                 log.error("name="+name+", has print="+i+", break");
                 break;

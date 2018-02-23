@@ -28,80 +28,54 @@ public class ConcurrentPool extends AbstractExecutorService {
     private static final int STOP = 1 << COUNT_BITS;
     private static final int TIDYING = 2 << COUNT_BITS;
     private static final int TERMINATED = 3 << COUNT_BITS;
-
     private static int runStateOf(int c) {
         return c & ~CAPACITY;
     }
-
     private static int workerCountOf(int c) {
         return c & CAPACITY;
     }
-
     private static int ctlOf(int rs, int wc) {
         return rs | wc;
     }
-
     private static boolean runStateLessThan(int c, int s) {
         return c < s;
     }
-
     private static boolean runStateAtLeast(int c, int s) {
         return c >= s;
     }
-
     private static boolean isRunning(int c) {
         return c < SHUTDOWN;
     }
-
     private boolean compareAndIncrementWorkerCount(int expect) {
         return ctl.compareAndSet(expect, expect + 1);
     }
-
     private boolean compareAndDecrementWorkerCount(int expect) {
         return ctl.compareAndSet(expect, expect - 1);
     }
-
     private void decrementWorkerCount() {
         do {
         } while (!compareAndDecrementWorkerCount(ctl.get()));
     }
-
     private final ConcurrentLinkedQueue<Runnable> workQueue = new ConcurrentLinkedQueue<>();
-
     private final ConcurrentLinkedQueue<Worker> signQueue = new ConcurrentLinkedQueue<>();
-
     private final ReentrantLock mainLock = new ReentrantLock();
-
     private final HashSet<Worker> workers = new HashSet<>();
-
     private final Condition termination = mainLock.newCondition();
-
-    private int largestPoolSize;
-
-    private long completedTaskCount;
-
+    private volatile int largestPoolSize;
+    private volatile long completedTaskCount;
     private volatile ThreadFactory threadFactory;
-
     private volatile PoolRejectedHandler handler;
-
     private volatile long keepAliveTime;
-
     private volatile boolean allowCoreThreadTimeOut;
-
     private volatile int corePoolSize;
-
     private volatile int maximumPoolSize;
-
     private static final PoolRejectedHandler defaultHandler = new AbortPolicy();
-
     private static final RuntimePermission shutdownPerm = new RuntimePermission("modifyThread");
-
     private final AccessControlContext acc;
-
     private final class Worker extends AbstractQueuedSynchronizer implements Runnable {
         private static final long serialVersionUID = 6138294804551838833L;
         final Thread thread;
-        Runnable firstTask;
+        volatile Runnable firstTask;
         volatile long completedTasks;
 
         Worker(Runnable firstTask) {
@@ -434,7 +408,7 @@ public class ConcurrentPool extends AbstractExecutorService {
             }
             if (timed) {
                 waitTimed();
-                timedOut = checkStateAndClean(w);
+                timedOut = checkStateAndClean();
                 if (timedOut) {
                     r = pollTask();
                     if (null != r) {
@@ -457,22 +431,26 @@ public class ConcurrentPool extends AbstractExecutorService {
 
     private boolean normalPark(Worker w) {
         signQueue.offer(w);
-        final Thread t = w.thread;
         try {
-            if (null != t) {
-                LockSupport.park(t);
-            } else {
-                LockSupport.park();
-            }
+            long s = spinLong();
+            LockSupport.parkNanos(s);
         } finally {
             unParkFirst();
         }
-        if (!checkStateAndClean(w)) {
+        if (!checkStateAndClean()) {
             return false;
         } else {
             return true;
         }
     }
+
+    private long spinLong() {
+        long sleep = 10000L * getActiveCount();
+        sleep = Math.min(1000000, sleep);
+        sleep *= Math.random();
+        return Math.max(10000, sleep);
+    }
+
 
     private void unParkFirst() {
         final Worker tw = signQueue.poll();
@@ -484,11 +462,7 @@ public class ConcurrentPool extends AbstractExecutorService {
         }
     }
 
-    private boolean checkStateAndClean(Worker w) {
-        final Thread t0 = w.thread;
-        String s0 = t0.getName();
-        final Thread t1 = Thread.currentThread();
-        String s1 = t1.getName();
+    private boolean checkStateAndClean() {
         if (Thread.currentThread().interrupted()) {
             return false;
         } else {
