@@ -444,6 +444,7 @@ public class ConcurrentPool extends AbstractExecutorService {
         }
     }
 
+    // from canssandra
     private long spinLong() {
         long sleep = 10000L * getActiveCount();
         sleep = Math.min(1000000, sleep);
