@@ -28,36 +28,49 @@ public class ConcurrentPool extends AbstractExecutorService {
     private static final int STOP = 1 << COUNT_BITS;
     private static final int TIDYING = 2 << COUNT_BITS;
     private static final int TERMINATED = 3 << COUNT_BITS;
+
     private static int runStateOf(int c) {
         return c & ~CAPACITY;
     }
+
     private static int workerCountOf(int c) {
         return c & CAPACITY;
     }
+
     private static int ctlOf(int rs, int wc) {
         return rs | wc;
     }
+
     private static boolean runStateLessThan(int c, int s) {
         return c < s;
     }
+
     private static boolean runStateAtLeast(int c, int s) {
         return c >= s;
     }
+
     private static boolean isRunning(int c) {
         return c < SHUTDOWN;
     }
+
     private boolean compareAndIncrementWorkerCount(int expect) {
         return ctl.compareAndSet(expect, expect + 1);
     }
+
     private boolean compareAndDecrementWorkerCount(int expect) {
         return ctl.compareAndSet(expect, expect - 1);
     }
+
     private void decrementWorkerCount() {
         do {
         } while (!compareAndDecrementWorkerCount(ctl.get()));
     }
+
     private final ConcurrentLinkedQueue<Runnable> workQueue = new ConcurrentLinkedQueue<>();
+    // 后续考虑是否应该使用这一个并发的队列，然后剔除掉HashSet的workers，后续在优化
     private final ConcurrentLinkedQueue<Worker> signQueue = new ConcurrentLinkedQueue<>();
+    // 借鉴aqs，也是一种瞎搞的，后续在想好的办法吧
+    private static final long spinForTimeoutThreshold = 1000L;
     private final ReentrantLock mainLock = new ReentrantLock();
     private final HashSet<Worker> workers = new HashSet<>();
     private final Condition termination = mainLock.newCondition();
@@ -72,12 +85,14 @@ public class ConcurrentPool extends AbstractExecutorService {
     private static final PoolRejectedHandler defaultHandler = new AbortPolicy();
     private static final RuntimePermission shutdownPerm = new RuntimePermission("modifyThread");
     private final AccessControlContext acc;
+
     private final class Worker extends AbstractQueuedSynchronizer implements Runnable {
         private static final long serialVersionUID = 6138294804551838833L;
         final Thread thread;
         volatile Runnable firstTask;
         volatile long completedTasks;
 
+        // 发现了一个思考点，漏洞，aqs要结合着一起看下
         Worker(Runnable firstTask) {
             setState(-1); // inhibit interrupts until runWorker
             this.firstTask = firstTask;
@@ -406,9 +421,13 @@ public class ConcurrentPool extends AbstractExecutorService {
             if (null != r) {
                 return r;
             }
+            // 如果timed，说明线程池的线程数量太多了，或者，允许corePoolSize超时
+            // 那么这时采用整块时间分段随机睡眠的方式
             if (timed) {
-                waitTimed();
-                timedOut = checkStateAndClean();
+                // 这里存在bug，小心，哈哈
+                timedOut = waitTimed(w);
+                // 如果是正常的timeOut，去队列中取runner
+                // 否则，继续for循环
                 if (timedOut) {
                     r = pollTask();
                     if (null != r) {
@@ -416,6 +435,8 @@ public class ConcurrentPool extends AbstractExecutorService {
                     }
                 }
             } else {
+                // 如果timed为false，说明线程池的线程数量太少了，或者，不允许corePoolSize超时
+                // 那么这时采用整块时间分段固定大小睡眠的方式
                 timedOut = normalPark(w);
             }
         }
@@ -425,28 +446,63 @@ public class ConcurrentPool extends AbstractExecutorService {
         return workQueue.poll();
     }
 
-    private void waitTimed() {
-        LockSupport.parkNanos(TimeUnit.NANOSECONDS.convert(keepAliveTime, TimeUnit.NANOSECONDS));
+    // 高速的提交submit，然后线程池再使用locksupport进行park与unpark
+    // 由于提到的几个bug，那么，哈哈，jvm会出现不可知的异常，一种情况是：内存被撑爆，不会进行回收
+    // 哈哈，park与unpark太频繁了
+    private boolean waitTimed(Worker w) {
+        signQueue.offer(w);
+        try {
+            LockSupport.parkNanos(nanoConvert());
+        } finally {
+            return checkStateAndClean();
+        }
+    }
+
+    private final long nanoConvert() {
+        return TimeUnit.NANOSECONDS.convert(keepAliveTime, TimeUnit.NANOSECONDS);
+    }
+
+    // 这里的捕获中断状态，为什么？谁会去中断线程池的内部的线程呢？
+    // 因为为了维护线程池的状态，停止时是线程池自己的线程去中断其他的线程，在pool状态已经设置好了的情况下，
+    // 所以，这个是为了维护pool的状态才设置的对中断状态的判断
+    // 我们自己代码的中断，只能是中断我们自身业务的线程，这个和线程池中的判断中断状态的线程是不在一个区域的
+    // 一个是线程池自己的，一个是业务的
+    // 在runWorker方法中的判断也是如此
+    private boolean checkStateAndClean() {
+        if (Thread.currentThread().interrupted()) {
+            // 并不是正常的timeOut
+            return false;
+        } else {
+            // 是正常的timeOut
+            return true;
+        }
     }
 
     private boolean normalPark(Worker w) {
         signQueue.offer(w);
         try {
-            long s = spinLong();
-            LockSupport.parkNanos(s);
+            localPark();
         } finally {
-            unParkFirst();
-        }
-        if (!checkStateAndClean()) {
-            return false;
-        } else {
-            return true;
+            return checkStateAndClean();
         }
     }
 
-    // from canssandra
+    private final void localPark() {
+        try {
+            long s = spinLong();
+            LockSupport.parkNanos(this, s);
+        } finally {
+            unParkFirst();
+        }
+    }
+
+    // copy from canssandra
     // error in GitHub, fixing
     // 过年回来git坏了，不知道什么问题，http://blog.csdn.net/ykttt1/article/details/47292821
+    // 这里的代码借鉴不知道是不是合适，aqs同样的也可以参考
+    // 频繁的使用随机也是很耗性能的，哈哈，如果测试后反而不快了，那就悲剧了
+    // 性能肯定慢了，但是相对于业务来说可能不慢，感觉不出来，但是方便了啊
+    // 哈哈
     private long spinLong() {
         long sleep = 10000L * getActiveCount();
         sleep = Math.min(1000000, sleep);
@@ -454,22 +510,16 @@ public class ConcurrentPool extends AbstractExecutorService {
         return Math.max(10000, sleep);
     }
 
-
     private void unParkFirst() {
         final Worker tw = signQueue.poll();
         if (null != tw) {//&&!tw.isLocked()
             final Thread t = tw.thread;
             if (null != t) {
+                // 这里也会有bug，哈哈，原因就是，park与unpark成对出现
+                // 而且unpark先于park调用时，下次的park会无效，和幂等的那种有些区别
+                // 哈哈，再看下，改起来真费劲
                 LockSupport.unpark(t);
             }
-        }
-    }
-
-    private boolean checkStateAndClean() {
-        if (Thread.currentThread().interrupted()) {
-            return false;
-        } else {
-            return true;
         }
     }
 
@@ -477,13 +527,26 @@ public class ConcurrentPool extends AbstractExecutorService {
         Thread wt = Thread.currentThread();
         Runnable task = w.firstTask;
         w.firstTask = null;
+        // 初始化由于setState为-1，所以，这里要unlock一下，保证下面的lock可以检测到中断，
+        // 因为有try-catch代码
         w.unlock();
         boolean completedAbruptly = true;
         try {
             while (task != null || (task = getTask(w)) != null) {
                 w.lock();
-                if ((runStateAtLeast(ctl.get(), STOP) || (Thread.interrupted() && runStateAtLeast(ctl.get(),
-                        STOP))) && !wt.isInterrupted()) {
+                // 这里判断了两个1.线程是否中断2.pool是否终止
+                // 这两个条件要是其中一个发生都会触发中断
+                // 判断了两次
+                if ((runStateAtLeast(ctl.get(), STOP) ||
+                        (Thread.interrupted() && runStateAtLeast(ctl.get(), STOP)))
+                        && !wt.isInterrupted()) {
+                    // 1.如果线程池终止，但是线程没有被中断，那么中断wt.interrupt()
+                    // 2.如果线程池没有终止，那么判断在判断线程是否中断的时候在判断pool的状态
+                    // 3.如果线程被中断了，但是线程池没有终止，那么这时整个if判断结果为false，不调用wt.interrupt()
+                    // 4.如果线程被中断了，并且这时线程池也终止了（但是最开始判断线程池的状态时候还没有终止），又由于
+                    // Thread.interrupted()已经将中断状态擦除，所以wt.isInterrupted()为false，所以整体if判断结果为true
+                    // 这时执行wt.interrupt()，那么进入下面的try-catch代码就会捕获中断了
+                    // 5.如果线程没有被中断，那么整体的if结果是false，不执行wt.interrupt()
                     wt.interrupt();
                 }
                 try {
@@ -509,6 +572,7 @@ public class ConcurrentPool extends AbstractExecutorService {
                     w.unlock();
                 }
             }
+            // 正常终止，正常的跳出循环
             completedAbruptly = false;
         } finally {
             processWorkerExit(w, completedAbruptly);
