@@ -1,5 +1,7 @@
 package com.baojie.zk.example.concurrent;
 
+import com.baojie.zk.example.concurrent.threadpool.MyThreadPool;
+
 import java.util.concurrent.ThreadPoolExecutor;
 
 // 接口的adaptor（转换器）
@@ -33,6 +35,11 @@ public abstract class BaojieRejectedHandler implements PoolRejectedHandler {
 
     @Override
     public void rejectedExecution(Runnable r, HaThreadPool executor) {
+
+    }
+
+    @Override
+    public void rejectedExecution(Runnable r, MyThreadPool pool) {
 
     }
 

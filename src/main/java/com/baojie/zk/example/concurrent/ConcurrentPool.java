@@ -66,9 +66,13 @@ public class ConcurrentPool extends AbstractExecutorService {
         } while (!compareAndDecrementWorkerCount(ctl.get()));
     }
 
+    // 通过此变量作为key来存储需要那些park的线程
+    private final AtomicInteger parkNum = new AtomicInteger(0);
+
+    // 存储那些需要park线程
+    private final ConcurrentHashMap<Integer, Worker> wp = new ConcurrentHashMap<>(8192);
+
     private final ConcurrentLinkedQueue<Runnable> workQueue = new ConcurrentLinkedQueue<>();
-    // 后续考虑是否应该使用这一个并发的队列，然后剔除掉HashSet的workers，后续在优化
-    private final ConcurrentLinkedQueue<Worker> signQueue = new ConcurrentLinkedQueue<>();
     // 借鉴aqs，也是一种瞎搞的，后续在想好的办法吧
     private static final long spinForTimeoutThreshold = 1000L;
     private final ReentrantLock mainLock = new ReentrantLock();
@@ -114,8 +118,9 @@ public class ConcurrentPool extends AbstractExecutorService {
             if (compareAndSetState(0, 1)) {
                 setExclusiveOwnerThread(Thread.currentThread());
                 return true;
+            } else {
+                return false;
             }
-            return false;
         }
 
         @Override
@@ -349,9 +354,10 @@ public class ConcurrentPool extends AbstractExecutorService {
                 }
             }
         } finally {
-            unParkFirst();
+            // 如果没有启动成功，也就是还没有调用thread.start，那么需要unpark
             if (!workerStarted) {
                 addWorkerFailed(w);
+                unParkFirst();
             }
         }
         return workerStarted;
@@ -416,8 +422,7 @@ public class ConcurrentPool extends AbstractExecutorService {
                 }
                 continue;
             }
-            Runnable r;
-            r = pollTask();
+            Runnable r = pollTask();
             if (null != r) {
                 return r;
             }
@@ -450,9 +455,8 @@ public class ConcurrentPool extends AbstractExecutorService {
     // 由于提到的几个bug，那么，哈哈，jvm会出现不可知的异常，一种情况是：内存被撑爆，不会进行回收
     // 哈哈，park与unpark太频繁了
     private boolean waitTimed(Worker w) {
-        signQueue.offer(w);
         try {
-            LockSupport.parkNanos(nanoConvert());
+            simplePark(w, nanoConvert());
         } finally {
             return checkStateAndClean();
         }
@@ -461,6 +465,22 @@ public class ConcurrentPool extends AbstractExecutorService {
     private final long nanoConvert() {
         return TimeUnit.NANOSECONDS.convert(keepAliveTime, TimeUnit.NANOSECONDS);
     }
+
+    private void simplePark(Worker w, long nanos) {
+        final Thread t = w.thread;
+        if (null == t) {
+            return;
+        } else {
+            int key = parkNum.getAndIncrement();
+            try {
+                wp.putIfAbsent(key, w);
+                LockSupport.parkNanos(t, nanos);
+            } finally {
+                wp.remove(key);
+            }
+        }
+    }
+
 
     // 这里的捕获中断状态，为什么？谁会去中断线程池的内部的线程呢？
     // 因为为了维护线程池的状态，停止时是线程池自己的线程去中断其他的线程，在pool状态已经设置好了的情况下，
@@ -479,20 +499,10 @@ public class ConcurrentPool extends AbstractExecutorService {
     }
 
     private boolean normalPark(Worker w) {
-        signQueue.offer(w);
         try {
-            localPark();
+            simplePark(w, spinLong());
         } finally {
             return checkStateAndClean();
-        }
-    }
-
-    private final void localPark() {
-        try {
-            long s = spinLong();
-            LockSupport.parkNanos(this, s);
-        } finally {
-            unParkFirst();
         }
     }
 
@@ -511,7 +521,7 @@ public class ConcurrentPool extends AbstractExecutorService {
     }
 
     private void unParkFirst() {
-        final Worker tw = signQueue.poll();
+        final Worker tw = null;//signQueue.poll();
         if (null != tw) {//&&!tw.isLocked()
             final Thread t = tw.thread;
             if (null != t) {
@@ -534,19 +544,9 @@ public class ConcurrentPool extends AbstractExecutorService {
         try {
             while (task != null || (task = getTask(w)) != null) {
                 w.lock();
-                // 这里判断了两个1.线程是否中断2.pool是否终止
-                // 这两个条件要是其中一个发生都会触发中断
-                // 判断了两次
                 if ((runStateAtLeast(ctl.get(), STOP) ||
                         (Thread.interrupted() && runStateAtLeast(ctl.get(), STOP)))
                         && !wt.isInterrupted()) {
-                    // 1.如果线程池终止，但是线程没有被中断，那么中断wt.interrupt()
-                    // 2.如果线程池没有终止，那么判断在判断线程是否中断的时候在判断pool的状态
-                    // 3.如果线程被中断了，但是线程池没有终止，那么这时整个if判断结果为false，不调用wt.interrupt()
-                    // 4.如果线程被中断了，并且这时线程池也终止了（但是最开始判断线程池的状态时候还没有终止），又由于
-                    // Thread.interrupted()已经将中断状态擦除，所以wt.isInterrupted()为false，所以整体if判断结果为true
-                    // 这时执行wt.interrupt()，那么进入下面的try-catch代码就会捕获中断了
-                    // 5.如果线程没有被中断，那么整体的if结果是false，不执行wt.interrupt()
                     wt.interrupt();
                 }
                 try {
@@ -572,7 +572,6 @@ public class ConcurrentPool extends AbstractExecutorService {
                     w.unlock();
                 }
             }
-            // 正常终止，正常的跳出循环
             completedAbruptly = false;
         } finally {
             processWorkerExit(w, completedAbruptly);
