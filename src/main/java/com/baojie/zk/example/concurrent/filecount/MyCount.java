@@ -1,26 +1,25 @@
 package com.baojie.zk.example.concurrent.filecount;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.File;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.SynchronousQueue;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 public class MyCount {
-
+    private static final Logger log = LoggerFactory.getLogger(MyCount.class);
     private final ThreadPoolExecutor executor;
 
-    private final int dirNum;
+    private final int threadNum;
 
-    private final int fileNum;
 
-    public MyCount(int dirNum, int fileNum) {
-        this.dirNum = dirNum;
-        this.fileNum = fileNum;
-        this.executor = new ThreadPoolExecutor(dirNum + fileNum, 2 * (dirNum + fileNum), 180, TimeUnit.SECONDS, new
+    public MyCount(int threadNum) {
+        this.threadNum = threadNum;
+        this.executor = new ThreadPoolExecutor(threadNum, 2 * threadNum, 180, TimeUnit.SECONDS, new
                 SynchronousQueue<>());
     }
 
@@ -36,36 +35,42 @@ public class MyCount {
         if (!f.isDirectory()) {
             return -1L;
         }
-        final LinkedBlockingQueue<CoreFile> dirs = new LinkedBlockingQueue();
-        final LinkedBlockingQueue<CoreFile> files = new LinkedBlockingQueue<>();
-        final AtomicInteger level = new AtomicInteger(1);
+        final List<DirOnly> dirOnlyList = new CopyOnWriteArrayList<>();
         final AtomicLong sum = new AtomicLong(0);
-        final CoreFile cf = CoreFile.create(Poison.D, f);
-        dirs.offer(cf);
-        final CountDownLatch latch = new CountDownLatch(fileNum + dirNum);
-        for (int i = 0; i < fileNum; i++) {
-            FileOnly fileOnly = new FileOnly(files, latch, level, sum);
-            executor.submit(fileOnly);
+        final CountDownLatch latch = new CountDownLatch(threadNum);
+
+        final DirOnly dirOnly_0 = new DirOnly(latch, dirOnlyList, new AtomicInteger(1), sum);
+        dirOnly_0.offer4Init(f);
+        dirOnlyList.add(dirOnly_0);
+        if (1 == threadNum) {
+            executor.submit(dirOnly_0);
+        } else {
+            for (int i = 0; i < threadNum - 1; i++) {
+                final DirOnly dirOnly = new DirOnly(latch, dirOnlyList, new AtomicInteger(0), sum);
+                dirOnlyList.add(dirOnly);
+                executor.submit(dirOnly);
+            }
+            executor.submit(dirOnly_0);
         }
-        for (int j = 0; j < dirNum; j++) {
-            DirOnly dirOnly = new DirOnly(files, dirs, level, latch);
-            executor.submit(dirOnly);
-        }
-        try {
-            latch.await(3600, TimeUnit.SECONDS);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
+        for (; ; ) {
+            boolean l = false;
+            try {
+                l = latch.await(3, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+            if (l) {
+                break;
+            }
+            log.info(dir + ":sum=" + sum.get());
         }
         return sum.get();
     }
 
     public static void main(String args[]) {
         String dir = "/";
-
-        MyCount myCount = new MyCount(32, 128);
-
+        MyCount myCount = new MyCount(32);
         long sum = myCount.sum(dir);
-
         System.out.println(dir + ":sum=" + sum);
     }
 

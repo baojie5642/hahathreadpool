@@ -6,6 +6,7 @@ import org.apache.zookeeper.data.Stat;
 import java.io.IOException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.ReentrantLock;
 
 public class SimpleZookeeper implements Watcher {
     private static CountDownLatch connectedSemaphore = new CountDownLatch(1);
@@ -42,31 +43,63 @@ public class SimpleZookeeper implements Watcher {
 //        } catch (KeeperException e) {
 //            System.out.println("Error: " + e.code() + "," + e.getMessage());
 //        }
+        final ReentrantLock lock = new ReentrantLock();
 
-        String json = "{" +
-                "\"" + "mobileNum" + "\"" + ":" + "\"" + "176" + "\"" + "," +
-                "\"" + "guestMobileNum" + "\"" + ":" + "\"" + "176" + "\"" + "," +
-                "\"" + "orderType" + "\"" + ":" + "\"" + "1" + "\"" + "," +
-                "\"" + "pkgId" + "\"" + ":" + "\"" + "300" + "\"" + "," +
-                "\"" + "userCouponId" + "\"" + ":" + "\"" + "" + "\"" + "," +
-                "\"" + "activId" + "\"" + ":" + "\"" + "" + "\"" + "," +
-                "\"" + "source" + "\"" + ":" + "\"" + "ill" + "\"" + "," +
-                "\"" + "channelId" + "\"" + ":" + "\"" + "WAP" + "\"" + "," +
-                "\"" + "channelNo" + "\"" + ":" + "\"" + "SHCT_WAP" + "\"" + "," +
-                "\"" + "notifyUrl" + "\"" + ":" + "\"" + "" + "\"" + "," +
-                "\"" + "payChannel" + "\"" + ":" + "\"" + "3" + "\"" + "," +
-                "\"" + "forceCRM" + "\"" + ":" + "\"" + "false" + "\"" +
-                "}";
 
-String ssss="{\"mobileNum\":\"17301624025\",\"guestMobileNum\":\"17301624025\",\"orderType\":\"1\",\"pkgId\":\"300\"," +
-        "\"userCouponId\":\"\",\"activId\":\"\",\"source\":\"ill\",\"channelId\":\"WAP\",\"channelNo\":\"SHCT_WAP\"," +
-        "\"notifyUrl\":\"\",\"payChannel\":\"3\",\"forceCRM\":\"false\"}";
+        Runnable r0 = new Runnable() {
+            @Override
+            public void run() {
+                lock.lock();
+                try {
+                    try {
+                        TimeUnit.SECONDS.sleep(3600);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                } finally {
+                    lock.unlock();
+                }
+            }
+        };
 
-int llll=ssss.length();
+        Thread t0 = new Thread(r0, "r_0_test");
+        t0.start();
+        try {
+            TimeUnit.SECONDS.sleep(3);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
 
-System.out.println("lllllll="+llll);
+        Runnable r1 = new Runnable() {
+            @Override
+            public void run() {
 
-        System.out.println("json=" + json);
+                try {
+
+                    lock.lockInterruptibly();
+
+                    try {
+                        TimeUnit.SECONDS.sleep(3600);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                } finally {
+                    lock.unlock();
+                }
+            }
+        };
+        Thread t1 = new Thread(r1, "r_1_test");
+        t1.start();
+
+        try {
+            TimeUnit.SECONDS.sleep(16);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+
+        t1.interrupt();
 
 
     }
