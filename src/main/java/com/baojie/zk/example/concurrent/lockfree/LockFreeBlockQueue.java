@@ -20,10 +20,8 @@ public class LockFreeBlockQueue<E> extends AbstractQueue<E> implements
             .newUpdater(LockFreeBlockQueue.class, Node.class, "head");
 
     /**
-     * @param cmp
-     *            expected value
-     * @param val
-     *            new value
+     * @param cmp expected value
+     * @param val new value
      * @return true if cas is successful, otherwise false
      */
     private boolean casTail(Node<E> cmp, Node<E> val) {
@@ -31,10 +29,8 @@ public class LockFreeBlockQueue<E> extends AbstractQueue<E> implements
     }
 
     /**
-     * @param cmp
-     *            expected value
-     * @param val
-     *            new value
+     * @param cmp expected value
+     * @param val new value
      * @return true if cas is successful, otherwise false
      */
     private boolean casHead(Node<E> cmp, Node<E> val) {
@@ -44,8 +40,7 @@ public class LockFreeBlockQueue<E> extends AbstractQueue<E> implements
     /**
      * Internal node definition of queue.
      *
-     * @param<Object>
-     *            type of element in node
+     * @param<Object> type of element in node
      */
     private static class Node<E> {
         E value;
@@ -60,8 +55,7 @@ public class LockFreeBlockQueue<E> extends AbstractQueue<E> implements
         }
 
         /**
-         * @param val
-         *            deafault value
+         * @param val deafault value
          */
         public Node(E val) {
             value = val;
@@ -69,8 +63,7 @@ public class LockFreeBlockQueue<E> extends AbstractQueue<E> implements
         }
 
         /**
-         * @param next
-         *            default next pointer.
+         * @param next default next pointer.
          */
         public Node(Node<E> next) {
             value = null;
@@ -115,18 +108,19 @@ public class LockFreeBlockQueue<E> extends AbstractQueue<E> implements
     }
 
     /**
-     * @param tail
-     *            tail node
-     * @param head
-     *            head node
+     * @param tail tail node
+     * @param head head node
      */
     private void fixList(Node<E> tail, Node<E> head) {
         Node<E> curNode, curNodeNext, nextNodePrev;
         curNode = tail;
+        // 当前头节点没有变化，也就是没有删除操作
+        // 并且当前的队列不是空的
         while ((head == this.head) && (curNode != head)) {
             curNodeNext = curNode.next;
-            if (null == curNodeNext)
+            if (null == curNodeNext) {
                 break;
+            }
             nextNodePrev = curNodeNext.prev;
             if (nextNodePrev != curNode) {
                 curNodeNext.prev = curNode;
@@ -140,23 +134,20 @@ public class LockFreeBlockQueue<E> extends AbstractQueue<E> implements
     }
 
     public boolean offer(E e) {
-        if (e == null)
-            throw new NullPointerException();
-
-        int local_capacity = _capacity.get();
-        while (true) {
-            int local_size = _size.get();
-            if (local_size >= local_capacity)
-                return false;
-            if (_size.compareAndSet(local_size, local_size + 1))
-                break;
+        if (e == null) {
+            return false;
         }
-
+        if (!sizePlus()) {
+            return false;
+        }
         Node<E> tail;
         Node<E> node = new Node<E>(e);
-        while (true) {
+        for (; ; ) {
             tail = this.tail;
             node.next = tail;
+            // 通过cas设置队列的尾
+            // 如果成功了，那么
+            // node，tail已经是局部变量了，可以安全操作
             if (casTail(tail, node)) {
                 // _size.incrementAndGet();
                 tail.prev = node;
@@ -166,22 +157,36 @@ public class LockFreeBlockQueue<E> extends AbstractQueue<E> implements
         }
     }
 
+    // 这里先进行了队列数量的加操作
+    private boolean sizePlus() {
+        for (; ; ) {
+            int local_capacity = _capacity.get();
+            int local_size = _size.get();
+            if (local_size >= local_capacity) {
+                return false;
+            }
+            if (_size.compareAndSet(local_size, local_size + 1)) {
+                return true;
+            }
+        }
+    }
+
+
     /*
      * (non-Javadoc)
      *
      * @see java.util.Queue#peek()
      */
     public E peek() {
-        while (true) {
+        for (; ; ) {
             Node<E> header = this.head;
-            if (header.value != null)
+            if (header.value != null) {
                 return header.value;
-
+            }
             Node<E> tail = this.tail;
-
             if (header == this.head) {
-				/*
-				 * In our algorithm, a dummy node is a special node with a dummy
+                /*
+                 * In our algorithm, a dummy node is a special node with a dummy
 				 * value. It is created and inserted to the queue when it
 				 * becomes empty as explained above. Since a dummy node does not
 				 * contain a real value, it must be skipped when nodes are
@@ -279,10 +284,10 @@ public class LockFreeBlockQueue<E> extends AbstractQueue<E> implements
     AtomicInteger _capacity;
 
     private final Object putQueue_ = new Object();
-    private int putQueueLen_ = 0;
+    private volatile int putQueueLen_ = 0;
 
     private final Object getQueue_ = new Object();
-    private int getQueueLen_ = 0;
+    private volatile int getQueueLen_ = 0;
 
     private static long WAIT_DURATION = 1000;
 
@@ -290,6 +295,7 @@ public class LockFreeBlockQueue<E> extends AbstractQueue<E> implements
         // a notification may be lost in some cases - however
         // as none of the threads wait endlessly, a waiting thread
         // will either be notified, or will eventually wakeup
+        // 这里准备修改成volatile修饰
         if (getQueueLen_ > 0) {
             synchronized (getQueue_) {
                 getQueue_.notify();
@@ -343,8 +349,9 @@ public class LockFreeBlockQueue<E> extends AbstractQueue<E> implements
     }
 
     public void expand(int additionalCapacity) {
-        if (additionalCapacity <= 0)
+        if (additionalCapacity <= 0) {
             throw new IllegalArgumentException();
+        }
 
         _capacity.addAndGet(additionalCapacity);
 
@@ -352,11 +359,13 @@ public class LockFreeBlockQueue<E> extends AbstractQueue<E> implements
 
     public boolean offer(E x, long timeout, TimeUnit unit)
             throws InterruptedException {
-        if (x == null)
+        if (x == null) {
             throw new NullPointerException();
+        }
 
-        if (offer(x))
+        if (offer(x)) {
             return true;
+        }
 
         waitPut_(unit.toMillis(timeout));
 
@@ -370,8 +379,9 @@ public class LockFreeBlockQueue<E> extends AbstractQueue<E> implements
         }
 
         while (true) {
-            if (offer(x))
+            if (offer(x)) {
                 return;
+            }
             waitPut_(WAIT_DURATION);
         }
     }
@@ -388,8 +398,9 @@ public class LockFreeBlockQueue<E> extends AbstractQueue<E> implements
         waitPut_(timeoutInMillis);
         if (offer(x)) {
             return x;
-        } else
+        } else {
             return null;
+        }
 
     }
 
@@ -407,18 +418,20 @@ public class LockFreeBlockQueue<E> extends AbstractQueue<E> implements
 
         if (offer(x)) {
             return x;
-        } else
+        } else {
             return null;
+        }
     }
 
     public E poll(long timeout, TimeUnit unit) throws InterruptedException {
         E res = poll();
-        if (res != null)
+        if (res != null) {
             return res;
+        }
 
-        if (timeout <= 0)
+        if (timeout <= 0) {
             return null;
-        else {
+        } else {
             waitGet_(unit.toMillis(timeout));
             return poll();
         }
@@ -427,8 +440,9 @@ public class LockFreeBlockQueue<E> extends AbstractQueue<E> implements
     public E take() throws InterruptedException {
         while (true) {
             E res = poll();
-            if (res != null)
+            if (res != null) {
                 return res;
+            }
 
             waitGet_(WAIT_DURATION);
         }
@@ -458,8 +472,9 @@ public class LockFreeBlockQueue<E> extends AbstractQueue<E> implements
             if (tmp != null) {
                 i++;
                 c.add(tmp);
-            } else
+            } else {
                 return i;
+            }
         } while (true);
     }
 
@@ -471,14 +486,15 @@ public class LockFreeBlockQueue<E> extends AbstractQueue<E> implements
             if (tmp != null) {
                 i++;
                 c.add(tmp);
-            } else
+            } else {
                 return i;
-        } while (i<maxElements);
+            }
+        } while (i < maxElements);
         return i;
     }
 
     @Override
     public int remainingCapacity() {
-        return _capacity.get()-size();
+        return _capacity.get() - size();
     }
 }
