@@ -1,11 +1,11 @@
 package com.baojie.zk.example.concurrent.algorithm;
 
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 
 public final class Sort {
 
-    public static <AnyType extends Comparable<? super AnyType>>
-    void insertionSort(AnyType[] a) {
+    public static <AnyType extends Comparable<? super AnyType>> void insertionSort(AnyType[] a) {
         int j;
 
         for (int p = 1; p < a.length; p++) {
@@ -16,9 +16,7 @@ public final class Sort {
         }
     }
 
-
-    public static <AnyType extends Comparable<? super AnyType>>
-    void shellsort(AnyType[] a) {
+    public static <AnyType extends Comparable<? super AnyType>> void shellsort(AnyType[] a) {
         int j;
 
         for (int gap = a.length / 2; gap > 0; gap /= 2)
@@ -31,14 +29,11 @@ public final class Sort {
             }
     }
 
-
     private static int leftChild(int i) {
         return 2 * i + 1;
     }
 
-
-    private static <AnyType extends Comparable<? super AnyType>>
-    void percDown(AnyType[] a, int i, int n) {
+    private static <AnyType extends Comparable<? super AnyType>> void percDown(AnyType[] a, int i, int n) {
         int child;
         AnyType tmp;
 
@@ -57,8 +52,7 @@ public final class Sort {
     }
 
 
-    public static <AnyType extends Comparable<? super AnyType>>
-    void heapsort(AnyType[] a) {
+    public static <AnyType extends Comparable<? super AnyType>> void heapsort(AnyType[] a) {
         for (int i = a.length / 2 - 1; i >= 0; i--)  /* buildHeap */
             percDown(a, i, a.length);
         for (int i = a.length - 1; i > 0; i--) {
@@ -68,16 +62,14 @@ public final class Sort {
     }
 
 
-    public static <AnyType extends Comparable<? super AnyType>>
-    void mergeSort(AnyType[] a) {
+    public static <AnyType extends Comparable<? super AnyType>> void mergeSort(AnyType[] a) {
         AnyType[] tmpArray = (AnyType[]) new Comparable[a.length];
 
         mergeSort(a, tmpArray, 0, a.length - 1);
     }
 
 
-    private static <AnyType extends Comparable<? super AnyType>>
-    void mergeSort(AnyType[] a, AnyType[] tmpArray,
+    private static <AnyType extends Comparable<? super AnyType>> void mergeSort(AnyType[] a, AnyType[] tmpArray,
             int left, int right) {
         if (left < right) {
             int center = (left + right) / 2;
@@ -87,8 +79,8 @@ public final class Sort {
         }
     }
 
-    private static <AnyType extends Comparable<? super AnyType>>
-    void merge(AnyType[] a, AnyType[] tmpArray, int leftPos, int rightPos, int rightEnd) {
+    private static <AnyType extends Comparable<? super AnyType>> void merge(AnyType[] a, AnyType[] tmpArray,
+            int leftPos, int rightPos, int rightEnd) {
         int leftEnd = rightPos - 1;
         int tmpPos = leftPos;
         int numElements = rightEnd - leftPos + 1;
@@ -112,14 +104,11 @@ public final class Sort {
             a[rightEnd] = tmpArray[rightEnd];
     }
 
-
-    public static <AnyType extends Comparable<? super AnyType>>
-    void quicksort(AnyType[] a) {
+    public static <AnyType extends Comparable<? super AnyType>> void quicksort(AnyType[] a) {
         quicksort(a, 0, a.length - 1);
     }
 
     private static final int CUTOFF = 3;
-
 
     public static <AnyType> void swapReferences(AnyType[] a, int index1, int index2) {
         AnyType tmp = a[index1];
@@ -127,9 +116,7 @@ public final class Sort {
         a[index2] = tmp;
     }
 
-
-    private static <AnyType extends Comparable<? super AnyType>>
-    AnyType median3(AnyType[] a, int left, int right) {
+    private static <AnyType extends Comparable<? super AnyType>> AnyType median3(AnyType[] a, int left, int right) {
         int center = (left + right) / 2;
         if (a[center].compareTo(a[left]) < 0) {
             swapReferences(a, left, center);
@@ -147,12 +134,9 @@ public final class Sort {
     }
 
 
-    private static <AnyType extends Comparable<? super AnyType>>
-    void quicksort(AnyType[] a, int left, int right) {
+    private static <AnyType extends Comparable<? super AnyType>> void quicksort(AnyType[] a, int left, int right) {
         if (left + CUTOFF <= right) {
             AnyType pivot = median3(a, left, right);
-
-            // Begin partitioning
             int i = left, j = right - 1;
             for (; ; ) {
                 while (a[++i].compareTo(pivot) < 0) {
@@ -174,12 +158,10 @@ public final class Sort {
     }
 
 
-    private static <AnyType extends Comparable<? super AnyType>>
-    void insertionSort(AnyType[] a, int left, int right) {
+    private static <AnyType extends Comparable<? super AnyType>> void insertionSort(AnyType[] a, int left, int right) {
         for (int p = left + 1; p <= right; p++) {
             AnyType tmp = a[p];
             int j;
-
             for (j = p; j > left && tmp.compareTo(a[j - 1]) < 0; j--)
                 a[j] = a[j - 1];
             a[j] = tmp;
@@ -187,14 +169,13 @@ public final class Sort {
     }
 
 
-    public static <AnyType extends Comparable<? super AnyType>>
-    void quickSelect(AnyType[] a, int k) {
+    public static <AnyType extends Comparable<? super AnyType>> void quickSelect(AnyType[] a, int k) {
         quickSelect(a, 0, a.length - 1, k);
     }
 
 
-    private static <AnyType extends Comparable<? super AnyType>>
-    void quickSelect(AnyType[] a, int left, int right, int k) {
+    private static <AnyType extends Comparable<? super AnyType>> void quickSelect(AnyType[] a, int left, int right,
+            int k) {
         if (left + CUTOFF <= right) {
             AnyType pivot = median3(a, left, right);
             int i = left, j = right - 1;
@@ -220,8 +201,7 @@ public final class Sort {
         }
     }
 
-
-    private static final int NUM_ITEMS = 1000;
+    private static final int NUM_ITEMS = 10;
     private static int theSeed = 1;
 
     private static void checkSort(Integer[] a) {
@@ -244,9 +224,6 @@ public final class Sort {
     }
 
     public static void swap(List<?> list, int i, int j) {
-        // instead of using a raw type here, it's possible to capture
-        // the wildcard but it will require a call to a supplementary
-        // private method
         final List l = list;
         l.set(i, l.set(j, l.get(i)));
     }
@@ -263,31 +240,56 @@ public final class Sort {
             a[i] = i;
         for (theSeed = 0; theSeed < 20; theSeed++) {
             shuffle(a, new Random(System.nanoTime()));
+            long nano = System.nanoTime();
             Sort.insertionSort(a);
+            long cust = System.nanoTime() - nano;
+            System.out.println("insertionSort cust=" + cust + ", millis=" + TimeUnit.MILLISECONDS.convert(cust,
+                    TimeUnit.NANOSECONDS));
             checkSort(a);
 
             shuffle(a, new Random(System.nanoTime()));
+            long nano1 = System.nanoTime();
             Sort.heapsort(a);
+            long cust1 = System.nanoTime() - nano1;
+            System.out.println("heapsort cust1=" + cust1 + ", millis=" + TimeUnit.MILLISECONDS.convert(cust1,
+                    TimeUnit.NANOSECONDS));
             checkSort(a);
 
             shuffle(a, new Random(System.nanoTime()));
+            long nano2 = System.nanoTime();
             Sort.shellsort(a);
+            long cust2 = System.nanoTime() - nano2;
+            System.out.println("shellsort cust2=" + cust2 + ", millis=" + TimeUnit.MILLISECONDS.convert(cust2,
+                    TimeUnit.NANOSECONDS));
             checkSort(a);
 
             shuffle(a, new Random(System.nanoTime()));
+            long nano3 = System.nanoTime();
             Sort.mergeSort(a);
+            long cust3 = System.nanoTime() - nano3;
+            System.out.println("mergeSort cust3=" + cust3 + ", millis=" + TimeUnit.MILLISECONDS.convert(cust3,
+                    TimeUnit.NANOSECONDS));
             checkSort(a);
 
             shuffle(a, new Random(System.nanoTime()));
+            long nano4 = System.nanoTime();
             Sort.quicksort(a);
+            long cust4 = System.nanoTime() - nano4;
+            System.out.println("quicksort cust4=" + cust4 + ", millis=" + TimeUnit.MILLISECONDS.convert(cust4,
+                    TimeUnit.NANOSECONDS));
             checkSort(a);
 
             shuffle(a, new Random(System.nanoTime()));
+            long nano5 = System.nanoTime();
             Sort.quickSelect(a, NUM_ITEMS / 2);
+            long cust5 = System.nanoTime() - nano5;
+            System.out.println("quickSelect cust5=" + cust5 + ", millis=" + TimeUnit.MILLISECONDS.convert(cust5,
+                    TimeUnit.NANOSECONDS));
             System.out.println(a[NUM_ITEMS / 2 - 1] + " " + NUM_ITEMS / 2);
+            System.out.println("*****************  loop  =" + theSeed + "=   break   **********************");
         }
 
-
+        System.out.println("*****************  loop     break   **********************");
         Integer[] b = new Integer[10_000_000];
         for (int i = 0; i < b.length; i++)
             b[i] = i;
@@ -296,9 +298,7 @@ public final class Sort {
         long start = System.currentTimeMillis();
         Sort.quickSelect(b, b.length / 2);
         long end = System.currentTimeMillis();
-        System.out.println("Timing for Section 1.1 example: ");
-        System.out.println("Selection for N = " + b.length + " takes " +
-                (end - start) + "ms.");
+        System.out.println("Selection for N = " + b.length + " takes " + (end - start) + "ms.");
         System.out.println(b[b.length / 2 - 1] + " " + b.length / 2);
     }
 }
