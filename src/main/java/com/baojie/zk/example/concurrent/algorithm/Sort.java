@@ -53,10 +53,13 @@ public final class Sort {
 
 
     public static <AnyType extends Comparable<? super AnyType>> void heapsort(AnyType[] a) {
-        for (int i = a.length / 2 - 1; i >= 0; i--)  /* buildHeap */
+        // 先构建堆
+        for (int i = a.length / 2 - 1; i >= 0; i--) {
             percDown(a, i, a.length);
+        }
+        // 从数组的末尾从前往后，将对顶元素与末尾元素交换
         for (int i = a.length - 1; i > 0; i--) {
-            swapReferences(a, 0, i);                /* deleteMax */
+            swapReferences(a, 0, i);
             percDown(a, 0, i);
         }
     }
