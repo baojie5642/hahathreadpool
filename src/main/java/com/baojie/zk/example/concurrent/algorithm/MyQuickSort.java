@@ -77,6 +77,8 @@ public class MyQuickSort {
                 //}
                 //while (a[--j] > pivot) {
                 //}
+                //
+                //
                 if (i < j) {
                     swap(a, i, j);
                 } else {
