@@ -9,7 +9,7 @@ public class PoolTest {
 
     private final BaojieThreadPool pool = new BaojieThreadPool(1, 3, 180, TimeUnit.SECONDS,
             new LinkedBlockingQueue<>(30)
-            , UnitedThreadFactory
+            , TFactory
             .create("baojie_pool")) {
 
         public void beforeExecute(Thread t, Runnable r) {

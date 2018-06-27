@@ -4,7 +4,7 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
-public class UnitedThreadFactory implements ThreadFactory {
+public class TFactory implements ThreadFactory {
     private static final UnitedUncaught UNCAUGHT_EXCEPTION_HANDLER = UnitedUncaught.getInstance();
     private static final AtomicInteger POOL_NUMBER = new AtomicInteger(1);
     private static final int NO_THREAD_PRIORITY = Thread.NORM_PRIORITY;
@@ -15,24 +15,24 @@ public class UnitedThreadFactory implements ThreadFactory {
     private final String poolName;
     private final boolean isDaemon;
 
-    public static UnitedThreadFactory create(final String name) {
-        return new UnitedThreadFactory(name, false, NO_THREAD_PRIORITY);
+    public static TFactory create(final String name) {
+        return new TFactory(name, false, NO_THREAD_PRIORITY);
     }
 
-    public static UnitedThreadFactory create(final String name, final boolean isDaemon) {
-        return new UnitedThreadFactory(name, isDaemon, NO_THREAD_PRIORITY);
+    public static TFactory create(final String name, final boolean isDaemon) {
+        return new TFactory(name, isDaemon, NO_THREAD_PRIORITY);
     }
 
-    public static UnitedThreadFactory create(final String name, final int threadPriority) {
-        return new UnitedThreadFactory(name, false, threadPriority);
+    public static TFactory create(final String name, final int threadPriority) {
+        return new TFactory(name, false, threadPriority);
     }
 
-    public static UnitedThreadFactory create(final String name, final boolean isDaemon, final int threadPriority) {
-        return new UnitedThreadFactory(name, isDaemon, threadPriority);
+    public static TFactory create(final String name, final boolean isDaemon, final int threadPriority) {
+        return new TFactory(name, isDaemon, threadPriority);
     }
 
-    private UnitedThreadFactory(final String name, final boolean isDaemon, final int threadPriority) {
-        this.group = UnitedThreadGroup.getGroup();
+    private TFactory(final String name, final boolean isDaemon, final int threadPriority) {
+        this.group = TGroup.getGroup();
         this.factoryName = name;
         this.isDaemon = isDaemon;
         this.t_Priority = threadPriority;

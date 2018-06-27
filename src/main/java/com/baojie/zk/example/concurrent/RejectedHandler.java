@@ -85,8 +85,8 @@ public class RejectedHandler implements RejectedExecutionHandler {
     private void printThreadName(Runnable r, ThreadPoolExecutor executor) {
         String tn = null;
         ThreadFactory tf = executor.getThreadFactory();
-        if (null != tf && (tf instanceof UnitedThreadFactory)) {
-            tn = ((UnitedThreadFactory) tf).getFactoryName();
+        if (null != tf && (tf instanceof TFactory)) {
+            tn = ((TFactory) tf).getFactoryName();
         }
         log.warn("RejectedHandlerName=" + rejectedName + ", threadName=" + tn + ", runnable.toString=" + r.toString());
     }

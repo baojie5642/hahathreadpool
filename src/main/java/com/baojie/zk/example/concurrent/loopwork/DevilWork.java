@@ -1,5 +1,7 @@
 package com.baojie.zk.example.concurrent.loopwork;
 
+import com.baojie.zk.example.concurrent.TFactory;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.*;
@@ -351,5 +353,53 @@ public class DevilWork {
         }
 
     }
+
+    public static void main(String args[]) {
+        ThreadPoolExecutor executor = new ThreadPoolExecutor(2, 6, 180, TimeUnit.SECONDS, new LinkedBlockingQueue<>()
+                , TFactory.create("pool_test"));
+
+        Runnable runnable = new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    TimeUnit.SECONDS.sleep(2);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+                throw new RuntimeException();
+            }
+        };
+
+        executor.prestartCoreThread();
+        try {
+            TimeUnit.SECONDS.sleep(6);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+
+        executor.execute(runnable);
+
+        try {
+            TimeUnit.SECONDS.sleep(6);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+        executor.execute(runnable);
+
+        try {
+            TimeUnit.SECONDS.sleep(6);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+        executor.execute(runnable);
+        try {
+            TimeUnit.SECONDS.sleep(6);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+        executor.execute(runnable);
+
+    }
+
 
 }

@@ -3,10 +3,10 @@ package com.baojie.zk.example.concurrent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public final class UnitedThreadGroup {
-	private static final Logger log = LoggerFactory.getLogger(UnitedThreadGroup.class);
+public final class TGroup {
+	private static final Logger log = LoggerFactory.getLogger(TGroup.class);
 
-	private UnitedThreadGroup() {
+	private TGroup() {
 
 	}
 

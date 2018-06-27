@@ -50,7 +50,7 @@ public class ConcurrentPoolTest implements Runnable {
 
         // 之后的测试采用触发式监控文件内容的形式，文件监控器已经写好了
         // 后续跟进
-        ConcurrentPool pool = new ConcurrentPool(1, 4, 10, TimeUnit.SECONDS, UnitedThreadFactory.create
+        ConcurrentPool pool = new ConcurrentPool(1, 4, 10, TimeUnit.SECONDS, TFactory.create
                 ("concurrent_test"));
         ConcurrentPoolTest t = null;
         for (int i = 0; i < 3; i++) {

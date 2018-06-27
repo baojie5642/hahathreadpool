@@ -15,7 +15,7 @@ public class RejectedPool extends ThreadPoolExecutor {
                 if (null == Instance) {
                     Instance = new RejectedPool(8, 512, 60, TimeUnit.SECONDS,
                             new LinkedBlockingQueue<Runnable>(2048),
-                            UnitedThreadFactory.create("Global_RejectedPool"),
+                            TFactory.create("Global_RejectedPool"),
                             RejectedHandler.getInstance());
                 }
             }
