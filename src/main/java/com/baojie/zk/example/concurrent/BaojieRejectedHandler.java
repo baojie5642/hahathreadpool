@@ -1,6 +1,7 @@
 package com.baojie.zk.example.concurrent;
 
 import com.baojie.zk.example.concurrent.seda.Stage;
+import com.baojie.zk.example.concurrent.seda_refactor.Stage_Refactor;
 import com.baojie.zk.example.concurrent.threadpool.MyThreadPool;
 
 import java.util.concurrent.ThreadPoolExecutor;
@@ -46,6 +47,11 @@ public abstract class BaojieRejectedHandler implements PoolRejectedHandler {
 
     @Override
     public void rejectedExecution(Runnable r, Stage pool) {
+
+    }
+
+    @Override
+    public void rejectedExecution(Runnable r, Stage_Refactor pool) {
 
     }
 
