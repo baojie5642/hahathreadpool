@@ -20,7 +20,7 @@ import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
 
 public class Stage_Refactor extends AbstractExecutorService {
-    private static final Logger log = LoggerFactory.getLogger(com.baojie.zk.example.concurrent.BaojieThreadPool.class);
+    private static final Logger log = LoggerFactory.getLogger(Stage_Refactor.class);
     private final AtomicInteger ctl = new AtomicInteger(ctlOf(RUNNING, 0));
     private static final int COUNT_BITS = Integer.SIZE - 3;
     private static final int CAPACITY = (1 << COUNT_BITS) - 1;
