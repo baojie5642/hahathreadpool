@@ -1,7 +1,5 @@
 package com.baojie.zk.example.concurrent.seda_refactor;
 
-import com.baojie.zk.example.concurrent.BaojieRejectedHandler;
-import com.baojie.zk.example.concurrent.PoolRejectedHandler;
 import com.baojie.zk.example.concurrent.TFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -9,11 +7,7 @@ import org.slf4j.LoggerFactory;
 import java.security.AccessControlContext;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
-import java.util.ArrayList;
-import java.util.ConcurrentModificationException;
 import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.AbstractQueuedSynchronizer;
@@ -74,8 +68,9 @@ public class Stage_Refactor extends Abstract_Stage_Service {
     private final ReentrantLock mainLock = new ReentrantLock();
     private final Condition termination = mainLock.newCondition();
     private final ThreadFactory threadFactory;
-    private final PoolRejectedHandler handler;
+    private final Stage_Rejected handler;
     private final Stage_Business bus;
+    private final String name;
 
     private int largestPoolSize;
     private long completedTaskCount;
@@ -97,9 +92,10 @@ public class Stage_Refactor extends Abstract_Stage_Service {
         this.acc = System.getSecurityManager() == null ? null : AccessController.getContext();
         this.corePoolSize = core;
         this.maximumPoolSize = max;
-        // 默认使用无缓存队列，工作者具有弹性
+        // 暂时不使用缓存队列
         this.workQueue = new SynchronousQueue<>();
         this.keepAliveTime = unit.toNanos(keepAlive);
+        this.name = name;
         this.threadFactory = TFactory.create(name);
         // 暂时实现直接失败的拒绝策略，简单
         this.handler = new DirectFail();
@@ -181,7 +177,10 @@ public class Stage_Refactor extends Abstract_Stage_Service {
                 log.error(throwable.toString() + ", callFrom=" + callFrom, throwable);
             }
         }
+    }
 
+    private ThreadFactory getThreadFactory() {
+        return threadFactory;
     }
 
     private void advanceRunState(int targetState) {
@@ -195,7 +194,7 @@ public class Stage_Refactor extends Abstract_Stage_Service {
         }
     }
 
-    final void tryTerminate() {
+    private final void tryTerminate() {
         for (; ; ) {
             int c = ctl.get();
             if (isRunning(c)) {
@@ -242,17 +241,6 @@ public class Stage_Refactor extends Abstract_Stage_Service {
         }
     }
 
-    private void interruptWorkers() {
-        final ReentrantLock mainLock = this.mainLock;
-        mainLock.lock();
-        try {
-            for (Worker w : workers)
-                w.interruptIfStarted();
-        } finally {
-            mainLock.unlock();
-        }
-    }
-
     private void interruptIdleWorkers(boolean onlyOne) {
         final ReentrantLock mainLock = this.mainLock;
         mainLock.lock();
@@ -281,28 +269,44 @@ public class Stage_Refactor extends Abstract_Stage_Service {
 
     private static final boolean ONLY_ONE = true;
 
-    final void reject(Stage_Task command) {
-        handler.rejectedExecution(command, this);
-    }
-
-    void onShutdown() {
-    }
-
-    private List<Stage_Task> drainQueue() {
-        BlockingQueue<Stage_Task> q = workQueue;
-        ArrayList<Stage_Task> taskList = new ArrayList<>();
-        q.drainTo(taskList);
-        if (!q.isEmpty()) {
-            for (Stage_Task r : q.toArray(new Stage_Task[0])) {
-                if (q.remove(r)) {
-                    taskList.add(r);
-                }
+    @Override
+    public boolean execute(Stage_Task task) {
+        if (task == null) {
+            return false;
+        }
+        int c = ctl.get();
+        // 因为使用弹性队列所以一开始就会创建线程去执行
+        if (workerCountOf(c) < corePoolSize) {
+            if (addWorker(task, true)) {
+                return true;
+            } else {
+                // 如果不成功，那么再次判断状态
+                c = ctl.get();
             }
         }
-        return taskList;
+        // 因为使用的sync阻塞队列
+        // 所以如果放入成功
+        // 那么说明已经已经被其他的线程获取到了
+        if (isRunning(c) && workQueue.offer(task)) {
+            int recheck = ctl.get();
+            // 这里不能随便remove
+            if (!isRunning(recheck)) {
+                tryTerminate();
+            } else if (workerCountOf(recheck) == 0) {
+                addWorker(null, false);
+            }
+            return true;
+        } else if (!addWorker(task, false)) {
+            reject(task);
+            return false;
+        } else {
+            return true;
+        }
     }
 
-    private boolean addWorker(Stage_Task firstTask, boolean core) {
+    // 这里刚开始不去做task的判null
+    // 因为允许先初始化线程线程等待任务执行
+    private final boolean addWorker(Stage_Task firstTask, boolean core) {
         retry:
         for (; ; ) {
             int c = ctl.get();
@@ -339,6 +343,9 @@ public class Stage_Refactor extends Abstract_Stage_Service {
                     int rs = runStateOf(ctl.get());
                     if (rs < SHUTDOWN || (rs == SHUTDOWN && firstTask == null)) {
                         if (t.isAlive()) {
+                            // 从业务上的层面来看，是否要直接抛出异常？还是返回false？
+                            // 暂时定为抛出异常，因为这种错误很难出现
+                            log.error("new Worker Thread isAlive, stage task=" + firstTask);
                             throw new IllegalThreadStateException();
                         }
                         workers.add(w);
@@ -378,64 +385,8 @@ public class Stage_Refactor extends Abstract_Stage_Service {
         }
     }
 
-    private void processWorkerExit(Worker w, boolean completedAbruptly) {
-        if (completedAbruptly) {
-            decrementWorkerCount();
-        }
-        final ReentrantLock mainLock = this.mainLock;
-        mainLock.lock();
-        try {
-            completedTaskCount += w.completedTasks;
-            workers.remove(w);
-        } finally {
-            mainLock.unlock();
-        }
-        tryTerminate();
-        int c = ctl.get();
-        if (runStateLessThan(c, STOP)) {
-            if (!completedAbruptly) {
-                int min = allowCoreThreadTimeOut ? 0 : corePoolSize;
-                if (min == 0 && !workQueue.isEmpty()) {
-                    min = 1;
-                }
-                if (workerCountOf(c) >= min) {
-                    return;
-                }
-            }
-            addWorker(null, false);
-        }
-    }
-
-    private Stage_Task getTask() {
-        boolean timedOut = false;
-        for (; ; ) {
-            int c = ctl.get();
-            int rs = runStateOf(c);
-            if (rs >= SHUTDOWN && (rs >= STOP || workQueue.isEmpty())) {
-                decrementWorkerCount();
-                return null;
-            }
-            int wc = workerCountOf(c);
-            boolean timed = allowCoreThreadTimeOut || wc > corePoolSize;
-            if ((wc > maximumPoolSize || ((timed && timedOut)) && (wc > 1 || workQueue.isEmpty()))) {
-                if (compareAndDecrementWorkerCount(c)) {
-                    return null;
-                }
-                continue;
-            }
-            try {
-                Stage_Task r = timed ? workQueue.poll(keepAliveTime, TimeUnit.NANOSECONDS) : workQueue.take();
-                if (r != null) {
-                    return r;
-                }
-                timedOut = true;
-            } catch (InterruptedException retry) {
-                timedOut = false;
-            }
-        }
-    }
-
-    final void runWorker(Worker w) {
+    private final void runWorker(Worker w) {
+        // 这里的thread就是worker中的thread
         Thread wt = Thread.currentThread();
         Stage_Task task = w.firstTask;
         w.firstTask = null;
@@ -444,8 +395,8 @@ public class Stage_Refactor extends Abstract_Stage_Service {
         try {
             while (task != null || (task = getTask()) != null) {
                 w.lock();
-                if ((runStateAtLeast(ctl.get(), STOP) || (Thread.interrupted() && runStateAtLeast(ctl.get(),
-                        STOP))) && !wt.isInterrupted()) {
+                if ((runStateAtLeast(ctl.get(), STOP) || (Thread.interrupted() &&
+                        runStateAtLeast(ctl.get(), STOP))) && !wt.isInterrupted()) {
                     wt.interrupt();
                 }
                 try {
@@ -477,38 +428,73 @@ public class Stage_Refactor extends Abstract_Stage_Service {
         }
     }
 
-
-    public boolean execute(Stage_Task task) {
-        if (task == null) {
-            return false;
-        }
-        int c = ctl.get();
-        if (workerCountOf(c) < corePoolSize) {
-            if (addWorker(task, true)) {
-                return true;
-            } else {
-                // 如果不成功，那么再次判断状态
-                c = ctl.get();
+    private final Stage_Task getTask() {
+        boolean timedOut = false;
+        for (; ; ) {
+            int c = ctl.get();
+            int rs = runStateOf(c);
+            if (rs >= SHUTDOWN && (rs >= STOP || workQueue.isEmpty())) {
+                decrementWorkerCount();
+                return null;
             }
-        }
-        if (isRunning(c) && workQueue.offer(task)) {
-            int recheck = ctl.get();
-            // 这里不能随便remove，要改掉
-            if (!isRunning(recheck) && remove(task)) {
-                reject(task);
-                return false;
-            } else if (workerCountOf(recheck) == 0) {
-                addWorker(null, false);
+            int wc = workerCountOf(c);
+            boolean timed = allowCoreThreadTimeOut || wc > corePoolSize;
+            if ((wc > maximumPoolSize || ((timed && timedOut)) && (wc > 1 || workQueue.isEmpty()))) {
+                if (compareAndDecrementWorkerCount(c)) {
+                    return null;
+                }
+                continue;
             }
-            return true;
-        } else if (!addWorker(task, false)) {
-            reject(task);
-            return false;
-        } else {
-            return true;
+            try {
+                Stage_Task r = timed ? workQueue.poll(keepAliveTime, TimeUnit.NANOSECONDS) : workQueue.take();
+                if (r != null) {
+                    return r;
+                }
+                timedOut = true;
+            } catch (InterruptedException retry) {
+                timedOut = false;
+            }
         }
     }
 
+    private final void processWorkerExit(Worker w, boolean completedAbruptly) {
+        if (completedAbruptly) {
+            decrementWorkerCount();
+        }
+        final ReentrantLock mainLock = this.mainLock;
+        mainLock.lock();
+        try {
+            completedTaskCount += w.completedTasks;
+            workers.remove(w);
+        } finally {
+            mainLock.unlock();
+        }
+        tryTerminate();
+        int c = ctl.get();
+        if (runStateLessThan(c, STOP)) {
+            if (!completedAbruptly) {
+                int min = allowCoreThreadTimeOut ? 0 : corePoolSize;
+                // 如果使用弹性队列，并且允许核心超时，那么如果线程数为0，还是可能直接返回的
+                if (min == 0 && !workQueue.isEmpty()) {
+                    min = 1;
+                }
+                if (workerCountOf(c) >= min) {
+                    return;
+                }
+            }
+            // 因为如果使用弹性队列，那么其实是在submit的时候就会先创建线程
+            // 也就是说线程数是先增长的，所以这里可以执行再添加的方法
+            addWorker(null, false);
+        }
+    }
+
+    private final void reject(Stage_Task command) {
+        handler.reject(command, this, name);
+    }
+
+    // 目前只允许直接调用shutDown，去掉shutDownNow方法
+    // 并且使用无缓存的任务队列
+    @Override
     public void shutdown() {
         final ReentrantLock mainLock = this.mainLock;
         mainLock.lock();
@@ -523,22 +509,7 @@ public class Stage_Refactor extends Abstract_Stage_Service {
         tryTerminate();
     }
 
-    public List<Stage_Task> shutdownNow() {
-        List<Stage_Task> tasks;
-        final ReentrantLock mainLock = this.mainLock;
-        mainLock.lock();
-        try {
-            checkShutdownAccess();
-            advanceRunState(STOP);
-            interruptWorkers();
-            tasks = drainQueue();
-        } finally {
-            mainLock.unlock();
-        }
-        tryTerminate();
-        return tasks;
-    }
-
+    @Override
     public boolean isShutdown() {
         return !isRunning(ctl.get());
     }
@@ -548,10 +519,12 @@ public class Stage_Refactor extends Abstract_Stage_Service {
         return !isRunning(c) && runStateLessThan(c, TERMINATED);
     }
 
+    @Override
     public boolean isTerminated() {
         return runStateAtLeast(ctl.get(), TERMINATED);
     }
 
+    @Override
     public boolean awaitTermination(long timeout, TimeUnit unit)
             throws InterruptedException {
         long nanos = unit.toNanos(timeout);
@@ -572,6 +545,7 @@ public class Stage_Refactor extends Abstract_Stage_Service {
         }
     }
 
+    @Override
     protected void finalize() {
         SecurityManager sm = System.getSecurityManager();
         if (sm == null || acc == null) {
@@ -583,16 +557,6 @@ public class Stage_Refactor extends Abstract_Stage_Service {
             };
             AccessController.doPrivileged(pa, acc);
         }
-    }
-
-
-    public ThreadFactory getThreadFactory() {
-        return threadFactory;
-    }
-
-
-    public PoolRejectedHandler getRejectedExecutionHandler() {
-        return handler;
     }
 
     public void setCorePoolSize(int corePoolSize) {
@@ -620,15 +584,6 @@ public class Stage_Refactor extends Abstract_Stage_Service {
     public boolean prestartCoreThread() {
         return workerCountOf(ctl.get()) < corePoolSize &&
                 addWorker(null, true);
-    }
-
-    void ensurePrestart() {
-        int wc = workerCountOf(ctl.get());
-        if (wc < corePoolSize) {
-            addWorker(null, true);
-        } else if (wc == 0) {
-            addWorker(null, false);
-        }
     }
 
     public int prestartAllCoreThreads() {
@@ -687,32 +642,8 @@ public class Stage_Refactor extends Abstract_Stage_Service {
         return unit.convert(keepAliveTime, TimeUnit.NANOSECONDS);
     }
 
-    public BlockingQueue<Stage_Task> getQueue() {
-        return workQueue;
-    }
-
-    public boolean remove(Stage_Task task) {
-        boolean removed = workQueue.remove(task);
-        tryTerminate(); // In case SHUTDOWN and now empty
-        return removed;
-    }
-
+    // 暂时仅仅去停止无用的多余线程
     public void purge() {
-        final BlockingQueue<Stage_Task> q = workQueue;
-        try {
-            Iterator<Stage_Task> it = q.iterator();
-            while (it.hasNext()) {
-                Stage_Task r = it.next();
-                if (r instanceof Future<?> && ((Future<?>) r).isCancelled()) {
-                    it.remove();
-                }
-            }
-        } catch (ConcurrentModificationException fallThrough) {
-            for (Object r : q.toArray())
-                if (r instanceof Future<?> && ((Future<?>) r).isCancelled()) {
-                    q.remove(r);
-                }
-        }
         tryTerminate();
     }
 
@@ -818,21 +749,30 @@ public class Stage_Refactor extends Abstract_Stage_Service {
     }
 
     protected void afterExecute(Stage_Task r, Throwable t) {
-
+        if (null == t) {
+            return;
+        } else {
+            log.error("occur error=" + t.toString() + ", stage task=" + r, t);
+            // 是否应该在bus中添加相应的执行出错方法？待定
+        }
     }
 
     protected void terminated() {
 
     }
 
-    public static class DirectFail extends BaojieRejectedHandler {
+    protected void onShutdown() {
+    }
+
+    public static class DirectFail implements Stage_Rejected {
 
         public DirectFail() {
-            super("AbortPolicy");
+
         }
 
-        public void rejectedExecution(Stage_Task r, Stage_Refactor e) {
-
+        @Override
+        public void reject(Stage_Task r, Stage_Executor e, String reason) {
+            log.error("rejected stage task=" + r + ", stage name=" + reason);
         }
 
     }
