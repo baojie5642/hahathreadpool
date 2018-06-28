@@ -2,6 +2,7 @@ package com.baojie.zk.example.concurrent.seda_refactor;
 
 import com.baojie.zk.example.concurrent.BaojieRejectedHandler;
 import com.baojie.zk.example.concurrent.PoolRejectedHandler;
+import com.baojie.zk.example.concurrent.TFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -19,7 +20,7 @@ import java.util.concurrent.locks.AbstractQueuedSynchronizer;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
 
-public class Stage_Refactor extends AbstractExecutorService {
+public class Stage_Refactor extends Abstract_Stage_Service {
     private static final Logger log = LoggerFactory.getLogger(Stage_Refactor.class);
     private final AtomicInteger ctl = new AtomicInteger(ctlOf(RUNNING, 0));
     private static final int COUNT_BITS = Integer.SIZE - 3;
@@ -68,43 +69,54 @@ public class Stage_Refactor extends AbstractExecutorService {
         } while (!compareAndDecrementWorkerCount(ctl.get()));
     }
 
-    private final BlockingQueue<Runnable> workQueue;
-
-    private final ReentrantLock mainLock = new ReentrantLock();
-
+    private final BlockingQueue<Stage_Task> workQueue;
     private final HashSet<Worker> workers = new HashSet<>();
-
+    private final ReentrantLock mainLock = new ReentrantLock();
     private final Condition termination = mainLock.newCondition();
+    private final ThreadFactory threadFactory;
+    private final PoolRejectedHandler handler;
+    private final Stage_Business bus;
 
     private int largestPoolSize;
-
     private long completedTaskCount;
-
-    private volatile ThreadFactory threadFactory;
-
-    private volatile PoolRejectedHandler handler;
-
-    private volatile long keepAliveTime;
-
-    private volatile boolean allowCoreThreadTimeOut;
-
     private volatile int corePoolSize;
-
+    private volatile long keepAliveTime;
     private volatile int maximumPoolSize;
-
-    private static final PoolRejectedHandler defaultHandler = new AbortPolicy();
-
+    private final AccessControlContext acc;
+    private volatile boolean allowCoreThreadTimeOut;
     private static final RuntimePermission shutdownPerm = new RuntimePermission("modifyThread");
 
-    private final AccessControlContext acc;
+    public Stage_Refactor(int core, int max, long keepAlive, TimeUnit unit, String name, Stage_Business bus) {
+        if (core < 0 || max <= 0 || max < core || keepAlive < 0) {
+            throw new IllegalArgumentException();
+        }
+        if (unit == null || name == null || bus == null) {
+            throw new NullPointerException();
+        }
+        this.bus = bus;
+        this.acc = System.getSecurityManager() == null ? null : AccessController.getContext();
+        this.corePoolSize = core;
+        this.maximumPoolSize = max;
+        // 默认使用无缓存队列，工作者具有弹性
+        this.workQueue = new SynchronousQueue<>();
+        this.keepAliveTime = unit.toNanos(keepAlive);
+        this.threadFactory = TFactory.create(name);
+        // 暂时实现直接失败的拒绝策略，简单
+        this.handler = new DirectFail();
+    }
 
+    // 这里的worker要实现runnable，方便start回调
+    // 而内部运行的确实外面的runWorker
+    // 这样通过试内部的原有的runnable对象的firstTask变换成自定义的接口
+    // 从而完成相应的stage的运行
+    // 但是要改造外名的future的内容才行，这样的改造才能使future正常工作
     private final class Worker extends AbstractQueuedSynchronizer implements Runnable {
         private static final long serialVersionUID = 6138294804551838833L;
         final Thread thread;
-        Runnable firstTask;
+        Stage_Task firstTask;
         volatile long completedTasks;
 
-        Worker(Runnable firstTask) {
+        Worker(Stage_Task firstTask) {
             setState(-1);
             this.firstTask = firstTask;
             this.thread = getThreadFactory().newThread(this);
@@ -269,19 +281,19 @@ public class Stage_Refactor extends AbstractExecutorService {
 
     private static final boolean ONLY_ONE = true;
 
-    final void reject(Runnable command) {
+    final void reject(Stage_Task command) {
         handler.rejectedExecution(command, this);
     }
 
     void onShutdown() {
     }
 
-    private List<Runnable> drainQueue() {
-        BlockingQueue<Runnable> q = workQueue;
-        ArrayList<Runnable> taskList = new ArrayList<>();
+    private List<Stage_Task> drainQueue() {
+        BlockingQueue<Stage_Task> q = workQueue;
+        ArrayList<Stage_Task> taskList = new ArrayList<>();
         q.drainTo(taskList);
         if (!q.isEmpty()) {
-            for (Runnable r : q.toArray(new Runnable[0])) {
+            for (Stage_Task r : q.toArray(new Stage_Task[0])) {
                 if (q.remove(r)) {
                     taskList.add(r);
                 }
@@ -290,7 +302,7 @@ public class Stage_Refactor extends AbstractExecutorService {
         return taskList;
     }
 
-    private boolean addWorker(Runnable firstTask, boolean core) {
+    private boolean addWorker(Stage_Task firstTask, boolean core) {
         retry:
         for (; ; ) {
             int c = ctl.get();
@@ -394,7 +406,7 @@ public class Stage_Refactor extends AbstractExecutorService {
         }
     }
 
-    private Runnable getTask() {
+    private Stage_Task getTask() {
         boolean timedOut = false;
         for (; ; ) {
             int c = ctl.get();
@@ -412,7 +424,7 @@ public class Stage_Refactor extends AbstractExecutorService {
                 continue;
             }
             try {
-                Runnable r = timed ? workQueue.poll(keepAliveTime, TimeUnit.NANOSECONDS) : workQueue.take();
+                Stage_Task r = timed ? workQueue.poll(keepAliveTime, TimeUnit.NANOSECONDS) : workQueue.take();
                 if (r != null) {
                     return r;
                 }
@@ -425,7 +437,7 @@ public class Stage_Refactor extends AbstractExecutorService {
 
     final void runWorker(Worker w) {
         Thread wt = Thread.currentThread();
-        Runnable task = w.firstTask;
+        Stage_Task task = w.firstTask;
         w.firstTask = null;
         w.unlock();
         boolean completedAbruptly = true;
@@ -440,7 +452,7 @@ public class Stage_Refactor extends AbstractExecutorService {
                     beforeExecute(wt, task);
                     Throwable thrown = null;
                     try {
-                        task.run();
+                        task.task(bus);
                     } catch (RuntimeException x) {
                         thrown = x;
                         throw x;
@@ -465,82 +477,35 @@ public class Stage_Refactor extends AbstractExecutorService {
         }
     }
 
-    public Stage_Refactor(int corePoolSize,
-            int maximumPoolSize,
-            long keepAliveTime,
-            TimeUnit unit,
-            BlockingQueue<Runnable> workQueue) {
-        this(corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue,
-                Executors.defaultThreadFactory(), defaultHandler);
-    }
 
-    public Stage_Refactor(int corePoolSize,
-            int maximumPoolSize,
-            long keepAliveTime,
-            TimeUnit unit,
-            BlockingQueue<Runnable> workQueue,
-            ThreadFactory threadFactory) {
-        this(corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue,
-                threadFactory, defaultHandler);
-    }
-
-    public Stage_Refactor(int corePoolSize,
-            int maximumPoolSize,
-            long keepAliveTime,
-            TimeUnit unit,
-            BlockingQueue<Runnable> workQueue,
-            PoolRejectedHandler handler) {
-        this(corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue,
-                Executors.defaultThreadFactory(), handler);
-    }
-
-    public Stage_Refactor(int corePoolSize,
-            int maximumPoolSize,
-            long keepAliveTime,
-            TimeUnit unit,
-            BlockingQueue<Runnable> workQueue,
-            ThreadFactory threadFactory,
-            PoolRejectedHandler handler) {
-        if (corePoolSize < 0 ||
-                maximumPoolSize <= 0 ||
-                maximumPoolSize < corePoolSize ||
-                keepAliveTime < 0) {
-            throw new IllegalArgumentException();
-        }
-        if (workQueue == null || threadFactory == null || handler == null) {
-            throw new NullPointerException();
-        }
-        this.acc = System.getSecurityManager() == null ?
-                null :
-                AccessController.getContext();
-        this.corePoolSize = corePoolSize;
-        this.maximumPoolSize = maximumPoolSize;
-        this.workQueue = workQueue;
-        this.keepAliveTime = unit.toNanos(keepAliveTime);
-        this.threadFactory = threadFactory;
-        this.handler = handler;
-    }
-
-    public void execute(Runnable command) {
-        if (command == null) {
-            throw new NullPointerException();
+    public boolean execute(Stage_Task task) {
+        if (task == null) {
+            return false;
         }
         int c = ctl.get();
         if (workerCountOf(c) < corePoolSize) {
-            if (addWorker(command, true)) {
-                return;
+            if (addWorker(task, true)) {
+                return true;
+            } else {
+                // 如果不成功，那么再次判断状态
+                c = ctl.get();
             }
-            c = ctl.get();
         }
-        if (isRunning(c) && workQueue.offer(command)) {
+        if (isRunning(c) && workQueue.offer(task)) {
             int recheck = ctl.get();
-            if (!isRunning(recheck) && remove(command)) {
-                reject(command);
+            // 这里不能随便remove，要改掉
+            if (!isRunning(recheck) && remove(task)) {
+                reject(task);
+                return false;
             } else if (workerCountOf(recheck) == 0) {
                 addWorker(null, false);
             }
-        } else if (!addWorker(command, false)) {
-            reject(command);
+            return true;
+        } else if (!addWorker(task, false)) {
+            reject(task);
+            return false;
+        } else {
+            return true;
         }
     }
 
@@ -558,8 +523,8 @@ public class Stage_Refactor extends AbstractExecutorService {
         tryTerminate();
     }
 
-    public List<Runnable> shutdownNow() {
-        List<Runnable> tasks;
+    public List<Stage_Task> shutdownNow() {
+        List<Stage_Task> tasks;
         final ReentrantLock mainLock = this.mainLock;
         mainLock.lock();
         try {
@@ -620,23 +585,11 @@ public class Stage_Refactor extends AbstractExecutorService {
         }
     }
 
-    public void setThreadFactory(ThreadFactory threadFactory) {
-        if (threadFactory == null) {
-            throw new NullPointerException();
-        }
-        this.threadFactory = threadFactory;
-    }
 
     public ThreadFactory getThreadFactory() {
         return threadFactory;
     }
 
-    public void setRejectedExecutionHandler(PoolRejectedHandler handler) {
-        if (handler == null) {
-            throw new NullPointerException();
-        }
-        this.handler = handler;
-    }
 
     public PoolRejectedHandler getRejectedExecutionHandler() {
         return handler;
@@ -734,22 +687,22 @@ public class Stage_Refactor extends AbstractExecutorService {
         return unit.convert(keepAliveTime, TimeUnit.NANOSECONDS);
     }
 
-    public BlockingQueue<Runnable> getQueue() {
+    public BlockingQueue<Stage_Task> getQueue() {
         return workQueue;
     }
 
-    public boolean remove(Runnable task) {
+    public boolean remove(Stage_Task task) {
         boolean removed = workQueue.remove(task);
         tryTerminate(); // In case SHUTDOWN and now empty
         return removed;
     }
 
     public void purge() {
-        final BlockingQueue<Runnable> q = workQueue;
+        final BlockingQueue<Stage_Task> q = workQueue;
         try {
-            Iterator<Runnable> it = q.iterator();
+            Iterator<Stage_Task> it = q.iterator();
             while (it.hasNext()) {
-                Runnable r = it.next();
+                Stage_Task r = it.next();
                 if (r instanceof Future<?> && ((Future<?>) r).isCancelled()) {
                     it.remove();
                 }
@@ -860,59 +813,28 @@ public class Stage_Refactor extends AbstractExecutorService {
                 "]";
     }
 
-    protected void beforeExecute(Thread t, Runnable r) {
+    protected void beforeExecute(Thread t, Stage_Task r) {
+
     }
 
-    protected void afterExecute(Runnable r, Throwable t) {
+    protected void afterExecute(Stage_Task r, Throwable t) {
+
     }
 
     protected void terminated() {
+
     }
 
-    public static class CallerRunsPolicy extends BaojieRejectedHandler {
-        public CallerRunsPolicy() {
-            super("CallerRunsPolicy");
-        }
+    public static class DirectFail extends BaojieRejectedHandler {
 
-        public void rejectedExecution(Runnable r, com.baojie.zk.example.concurrent.BaojieThreadPool e) {
-            if (!e.isShutdown()) {
-                r.run();
-            }
-        }
-    }
-
-    public static class AbortPolicy extends BaojieRejectedHandler {
-
-        public AbortPolicy() {
+        public DirectFail() {
             super("AbortPolicy");
         }
 
-        public void rejectedExecution(Runnable r, com.baojie.zk.example.concurrent.BaojieThreadPool e) {
-            throw new RejectedExecutionException("Task " + r.toString() + " rejected from " + e.toString());
+        public void rejectedExecution(Stage_Task r, Stage_Refactor e) {
+
         }
 
     }
 
-    public static class DiscardPolicy extends BaojieRejectedHandler {
-        public DiscardPolicy() {
-            super("DiscardPolicy");
-        }
-
-        public void rejectedExecution(Runnable r, com.baojie.zk.example.concurrent.BaojieThreadPool e) {
-        }
-    }
-
-    public static class DiscardOldestPolicy extends BaojieRejectedHandler {
-
-        public DiscardOldestPolicy() {
-            super("DiscardOldestPolicy");
-        }
-
-        public void rejectedExecution(Runnable r, com.baojie.zk.example.concurrent.BaojieThreadPool e) {
-            if (!e.isShutdown()) {
-                e.getQueue().poll();
-                e.execute(r);
-            }
-        }
-    }
 }
