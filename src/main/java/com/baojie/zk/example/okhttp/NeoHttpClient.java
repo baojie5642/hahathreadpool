@@ -1,4 +1,4 @@
-package com.baojie.zk.example.concurrent;
+package com.baojie.zk.example.okhttp;
 
 import java.nio.charset.Charset;
 import java.util.HashMap;
@@ -14,6 +14,7 @@ import okhttp3.RequestBody;
 import okhttp3.Response;
 import okio.GzipSource;
 import okio.Okio;
+import org.apache.commons.lang3.StringUtils;
 
 public class NeoHttpClient {
 
@@ -46,7 +47,16 @@ public class NeoHttpClient {
         Map<String, String> resultMap = new HashMap<>();
         Request request = new Request.Builder().url(url).headers(headers).build();
         try (Response response = client.newCall(request).execute()) {
-            Headers rspHeaders = response.headers();
+            Headers rspHeaders = response.networkResponse().headers();
+            int responseHeadersLength = rspHeaders.size();
+            for (int i = 0; i < responseHeadersLength; i++){
+                String headerName = rspHeaders.name(i);
+                String headerValue = rspHeaders.get(headerName);
+                System.out.print("TAG----------->Name:"+headerName+"------------>Value:"+headerValue+"\n");
+            }
+
+
+
             Map<String, List<String>> rspHeaderMap = rspHeaders.toMultimap();
             rspHeaderMap.forEach((k, v) -> {
                 resultMap.put(k, v.get(0));
@@ -55,17 +65,27 @@ public class NeoHttpClient {
             if ("gzip".equalsIgnoreCase(response.header("Content-Encoding"))) {
                 GzipSource source = new GzipSource(response.body().source());
                 String charset = "UTF-8";
-                String contentType = response.header("Content-Type", "text/html;charset=UTF-8");
-                charset = contentType.split(";")[1].replace("charset=", "");
+                String contentType = response.header("Content-Type");
+                charset = split(contentType);
                 String body = Okio.buffer(source).readString(Charset.forName(charset));
                 resultMap.put("body", body);
             } else {
                 String body = response.body().string();
                 resultMap.put("body", body);
             }
+            String cnapi=HttpUtil.httpGet(false,url,headerMap);
+
             return resultMap;
         }
     }
+
+    private String split(String contentType) {
+        String[] s = contentType.split(";");
+        String ss = s[1];
+        return StringUtils.replace(ss, "charset=", "");
+
+    }
+
 
     public Map<String, String> post(String url, String content, String mediaType, Map<String, String> headerMap)
             throws Exception {
@@ -102,4 +122,24 @@ public class NeoHttpClient {
     private Headers buildHeaders(Map<String, String> headerMap, String url) {
         return Headers.of(headerMap);
     }
+
+
+    public static void main(String args[]) {
+        NeoHttpClient neo = new NeoHttpClient();
+        Map<String, String> hp = new HashMap<>(8);
+        hp.put("Content-Type", "text/xml; charset=utf-8");
+        hp.put("Accept", "application/soap+xml,application/dime,multipart/related, text/*");
+       // hp.put("Accept-Encoding", "gzip");
+
+        try {
+            Map<String, String> respmap = neo.get("http://wwww.baidu.com", hp);
+
+            System.out.println(respmap.toString());
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+
+    }
+
 }
