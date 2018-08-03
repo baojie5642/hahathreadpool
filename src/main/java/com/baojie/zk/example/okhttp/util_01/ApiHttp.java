@@ -1,5 +1,6 @@
 package com.baojie.zk.example.okhttp.util_01;
 
+import com.baojie.zk.example.hotload.Config;
 import okhttp3.Headers;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
@@ -26,7 +27,7 @@ public class ApiHttp {
     private final OkHttpClient client;
 
     @Autowired
-    public ApiHttp() {
+    public ApiHttp(Config config) {
         this.client = OkHttpUtil.client();
     }
 
@@ -145,6 +146,7 @@ public class ApiHttp {
     private String string(Response resp, Charset charset) {
         try {
             return Okio.buffer(resp.body().source()).readString(charset);
+            //return resp.body().source().readString(charset);
         } catch (IOException ie) {
             log.error(ie.toString() + ", resp=" + resp.toString(), ie);
         } catch (Throwable te) {

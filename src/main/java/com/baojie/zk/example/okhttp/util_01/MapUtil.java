@@ -75,9 +75,4 @@ public class MapUtil {
         return hp;
     }
 
-
-
-
-
-
 }

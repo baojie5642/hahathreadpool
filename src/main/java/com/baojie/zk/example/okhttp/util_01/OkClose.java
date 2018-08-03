@@ -1,5 +1,6 @@
 package com.baojie.zk.example.okhttp.util_01;
 
+import okhttp3.Cache;
 import okhttp3.OkHttpClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -39,6 +40,10 @@ public class OkClose {
     }
 
     private static void closeCache(OkHttpClient c) {
+        Cache cache = c.cache();
+        if (null == cache) {
+            return;
+        }
         try {
             c.cache().close();
         } catch (IOException ie) {
