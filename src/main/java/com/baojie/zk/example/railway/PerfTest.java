@@ -23,9 +23,11 @@ public class PerfTest {
     private static long TEST_DURATION_MS;
 
     public static void main(final String[] args) throws Exception {
-        NUM_READERS = Integer.parseInt(args[0]);
-        NUM_WRITERS = Integer.parseInt(args[1]);
-        TEST_DURATION_MS = Long.parseLong(args[2]);
+        NUM_READERS = 8;
+        //Integer.parseInt(args[0]);
+        NUM_WRITERS = 8;
+        //Integer.parseInt(args[1]);
+        TEST_DURATION_MS = 3;//Long.parseLong(args[2]);
 
         for (int i = 0; i < 5; i++) {
             System.out.println("*** Run - " + i);
