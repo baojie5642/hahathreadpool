@@ -18,16 +18,18 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.Proxy;
 import java.nio.charset.Charset;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.LockSupport;
 
-@Service
+//@Service
 public class ApiHttp {
     private static final Logger log = LoggerFactory.getLogger(ApiHttp.class);
     private static final int DEFAULT_PORT = 3128;
 
     private final OkHttpClient client;
 
-    @Autowired
-    public ApiHttp(Config config) {
+    //@Autowired
+    public ApiHttp() {
         this.client = OkHttpUtil.client();
     }
 
@@ -168,6 +170,37 @@ public class ApiHttp {
         Request req = new Request.Builder().url(url).headers(hs).get().build();
         Response resp = switchCall(proxy, req);
         return shiftResp(resp, req);
+    }
+
+    public static void main(String args[]) {
+        final String url = "http://127.0.0.1:6789/test";
+        final ApiHttp api = new ApiHttp();
+        for (int i=0;i<128;i++){
+            HttpTest ht=new HttpTest(api);
+            Thread t=new Thread(ht,"http_test_"+i);
+            t.start();
+        }
+    }
+
+    private static final class HttpTest implements Runnable {
+        private static final Logger log = LoggerFactory.getLogger(HttpTest.class);
+        private final String url = "http://127.0.0.1:6789/test";
+
+        private final ApiHttp api;
+
+        public HttpTest(ApiHttp api) {
+            this.api = api;
+        }
+
+        @Override
+        public void run() {
+            LockSupport.parkNanos(TimeUnit.SECONDS.toNanos(30));
+            String name = Thread.currentThread().getName();
+            for (; ; ) {
+                String resp = api.normalGet(false, url);
+                //log.debug("thread name=" + name + ", resp=" + resp);
+            }
+        }
     }
 
 }

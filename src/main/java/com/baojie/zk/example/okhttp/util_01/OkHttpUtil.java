@@ -39,7 +39,7 @@ public class OkHttpUtil {
     }
 
     private static ConnectionPool pool() {
-        return new ConnectionPool(20, 15, TimeUnit.MINUTES);
+        return new ConnectionPool(256, 15, TimeUnit.MINUTES);
     }
 
     private static OkHttpClient create(final ConnectionPool pool) {
