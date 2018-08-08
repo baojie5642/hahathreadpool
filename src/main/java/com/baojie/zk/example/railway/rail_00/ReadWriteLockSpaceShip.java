@@ -1,4 +1,4 @@
-package com.baojie.zk.example.railway;
+package com.baojie.zk.example.railway.rail_00;
 
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;

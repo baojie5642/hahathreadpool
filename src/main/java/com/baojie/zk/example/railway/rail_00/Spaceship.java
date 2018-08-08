@@ -1,4 +1,4 @@
-package com.baojie.zk.example.railway;
+package com.baojie.zk.example.railway.rail_00;
 
 /**
  * Interface to a concurrent representation of a ship that can move around

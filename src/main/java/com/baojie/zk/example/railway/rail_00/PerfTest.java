@@ -1,4 +1,4 @@
-package com.baojie.zk.example.railway;
+package com.baojie.zk.example.railway.rail_00;
 
 import java.util.Arrays;
 import java.util.concurrent.*;
@@ -37,6 +37,7 @@ public class PerfTest {
                 perfRun(spaceship);
             }
         }
+        Thread.sleep(3600000);
         EXECUTOR.shutdown();
     }
 
