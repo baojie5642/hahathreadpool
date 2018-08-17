@@ -25,6 +25,7 @@ public class Railway {
     public Train waitTrainOnStation(final int trainNo, final int stationNo) {
         while (stationIndex[trainNo].get() % stationCount != stationNo) {
             Thread.yield();
+            Thread.currentThread().onSpinWait();
         }
         return train[trainNo];
     }

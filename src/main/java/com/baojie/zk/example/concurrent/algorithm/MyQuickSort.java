@@ -1,8 +1,6 @@
 package com.baojie.zk.example.concurrent.algorithm;
 
-import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
-import java.util.concurrent.TimeUnit;
 
 public class MyQuickSort {
 
@@ -18,7 +16,7 @@ public class MyQuickSort {
         if (size <= 0) {
             return;
         } else if (size <= INSERT_FLAG) {
-            insertionSort(a, 0, size - 1);
+            insertion(a, 0, size - 1);
         } else {
             quicksort(a, 0, size - 1);
         }
@@ -38,11 +36,6 @@ public class MyQuickSort {
         swap(a, center, right - 1);
         return a[right - 1];
     }
-
-    /**
-     * while (a[++i] < pivot) {}
-     * while (a[--j] > pivot) {}
-     **/
 
     private void quicksort(int[] a, int left, int right) {
         if (left + CUTOFF <= right) {
@@ -71,14 +64,6 @@ public class MyQuickSort {
                         }
                     }
                 }
-                // 这里的边界问题还要在考虑
-                // 重点是如何巧妙的处理
-                //while (a[++i] < pivot) {
-                //}
-                //while (a[--j] > pivot) {
-                //}
-                //
-                //
                 if (i < j) {
                     swap(a, i, j);
                 } else {
@@ -89,7 +74,7 @@ public class MyQuickSort {
             quicksort(a, left, i - 1);
             quicksort(a, i + 1, right);
         } else {
-            insertionSort(a, left, right);
+            insertion(a, left, right);
         }
     }
 
@@ -99,46 +84,214 @@ public class MyQuickSort {
         a[j] = temp;
     }
 
-    private void insertionSort(int[] a, int left, int right) {
+    public void insertion(int[] a, int left, int right) {
         for (int p = left + 1; p <= right; p++) {
-            int tmp = a[p];
-            int j;
-            for (j = p; j > left && tmp < a[j - 1]; j--)
+            int tmp = a[p], j;
+            for (j = p; j > left && tmp < a[j - 1]; j--) {
                 a[j] = a[j - 1];
+            }
             a[j] = tmp;
         }
     }
 
-    public void shuffle(int[] array, Random rnd) {
-        if (null == array || null == rnd) {
+    public void insertionV2(int[] as, int left, int right) {
+        if (null == as) {
+            return;
+        } else if (left < 0 || right < 0) {
+            return;
+        } else {
+            int size = as.length;
+            if (size <= 0) {
+                return;
+            } else if (right - left <= 0) {
+                return;
+            } else {
+                int i;
+                for (i = right; i > left; i--) {
+                    compare(as, i - 1, i);
+                }
+                for (i = left + 2; i <= right; i++) {
+                    int j = i;
+                    int v = as[i];
+                    while (v < as[j - 1]) {
+                        as[j] = as[j - 1];
+                        j--;
+                    }
+                    as[j] = v;
+                }
+            }
+        }
+    }
+
+    // 两种个冒泡的实现其中一种
+    public void bubble(int[] as, int b, int e) {
+        if (b < 0 || e < 0) {
             return;
         }
-        int size = array.length;
-        for (int i = size; i > 1; i--)
-            swap(array, i - 1, rnd.nextInt(i));
+        int length = e - b;
+        if (null == as) {
+            return;
+        } else if (length <= 0) {
+            return;
+        } else if (as.length <= 0) {
+            return;
+        } else {
+            for (int j = b; j < e; j++) {
+                for (int i = e; i > j; i--) {
+                    compare(as, i, i - 1);
+                }
+            }
+        }
     }
 
-    public static void main(String[] args) {
-        int size = 200000000;
-        int[] a = new int[size];
+    // 两种个冒泡的实现其中一种
+    public void bubbleV2(int[] as, int b, int e) {
+        if (b < 0 || e < 0) {
+            return;
+        }
+        int length = e - b;
+        if (null == as) {
+            return;
+        } else if (length <= 0) {
+            return;
+        } else if (as.length <= 0) {
+            return;
+        } else {
+            for (int j = b; j <= e; j++) {
+                for (int i = e; ; i--) {
+                    int t = i - 1;
+                    if (t >= j) {
+                        compare(as, i, t);
+                    } else {
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    private void compare(int[] as, int a, int b) {
+        if (as[a] > as[b]) {
+            swap(as, a, b);
+        }
+    }
+
+    // left,right均为数组下标
+    public void selection(int as[], int left, int right) {
+        if (null == as) {
+            return;
+        } else if (left < 0 || right < 0) {
+            return;
+        } else {
+            int size = as.length;
+            if (size <= 0) {
+                return;
+            } else if (right - left <= 0) {
+                return;
+            } else {
+                int i, j;
+                for (i = left; i < right; i++) {
+                    int min = i;
+                    for (j = i + i; j <= right; j++) {
+                        if (as[j] < as[min]) {
+                            min = j;
+                        }
+                    }
+                    swap(as, i, min);
+                }
+            }
+        }
+    }
+
+    // left,right均为数组下标
+    public void selectionV2(int as[], int left, int right) {
+        if (null == as) {
+            return;
+        } else if (left < 0 || right < 0) {
+            return;
+        } else {
+            int size = as.length;
+            if (size <= 0) {
+                return;
+            } else if (right - left <= 0) {
+                return;
+            } else {
+                for (int i = left; i < right; i++) {
+                    int min = i;
+                    for (int j = i + 1; j <= right; j++) {
+                        if (as[j] < as[min]) {
+                            min = j;
+                        }
+                    }
+                    swap(as, i, min);
+                }
+            }
+        }
+    }
+
+    public void shardingBubble(int a[], int left, int right) {
+        if (null == a) {
+            return;
+        } else if (left < 0 || right < 0) {
+            return;
+        } else if (a.length <= 0) {
+            return;
+        } else if (right - left <= 0) {
+            return;
+        } else {
+            int lf = left;
+            int rf = right;
+            out:
+            for (int i = 0; i <= right; i++) {
+                // 从右边开始，也就是小的上浮
+                if ((i % 2) == 0) {
+                    boolean swap = false;
+                    for (int j = rf; j > lf; j--) {
+                        if (a[j] < a[j - 1]) {
+                            swap(a, j - 1, j);
+                            swap = true;
+                        }
+                    }
+                    lf = lf + 1;
+                    if (!swap) {
+                        break out;
+                    }
+                } else {
+                    // 从左边开始，也就是大的下沉
+                    boolean swap = false;
+                    for (int k = lf; k < rf; k++) {
+                        if (a[k] > a[k + 1]) {
+                            swap(a, k, k + 1);
+                            swap = true;
+                        }
+                    }
+                    rf = rf - 1;
+                    if (!swap) {
+                        break out;
+                    }
+                }
+                if (lf >= rf) {
+                    break out;
+                }
+            }
+        }
+    }
+
+    public static void main(String args[]) {
+        MyQuickSort mqs = new MyQuickSort();
         ThreadLocalRandom random = ThreadLocalRandom.current();
-        for (int i = 0; i < size; i++) {
-            a[i] = random.nextInt(size);
+        int nums[] = new int[13];
+        for (int i = 0; i < 13; i++) {
+            int r = random.nextInt(2500);
+            nums[i] = r;
         }
-        System.out.println("start sort**********");
-        MyQuickSort myQuickSort = new MyQuickSort();
-        for (int i = 0; i < 20; i++) {
-            myQuickSort.shuffle(a, new Random(System.nanoTime()));
-            long s = System.nanoTime();
-            myQuickSort.sort(a);
-            long cust = System.nanoTime() - s;
-            System.out.println("has done sort, cust nano=" + cust + ", millis=" + TimeUnit.MILLISECONDS.convert(cust,
-                    TimeUnit.NANOSECONDS));
+        mqs.shardingBubble(nums, 0, nums.length - 1);
+        for (int n : nums) {
+            System.out.println(n);
+        }
 
-        }
-        //for (int i = 0; i < size; i++) {
-        //    System.out.println(a[i]);
-        //}
+
     }
+
 
 }

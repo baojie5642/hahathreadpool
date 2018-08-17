@@ -10,39 +10,39 @@ public class StampTest {
     public static void main(String[] args) throws InterruptedException {
 
 
-        LockSupport.unpark(null);
-        Thread.sleep(10000);
-
-        final HaStampLock lock = new HaStampLock();
-
-        new Thread() {
-
-            public void run() {
-
-                long readLong = lock.writeLock();
-
-                LockSupport.parkNanos(TimeUnit.NANOSECONDS.convert(1, TimeUnit.HOURS));
-
-                lock.unlockWrite(readLong);
-
-            }
-
-        }.start();
-
-        Thread.sleep(10000);
-        List<Thread> threadslist=new ArrayList<>();
-        Thread ttt = null;
-        for (int i = 0; i < 32; ++i) {
-
-            ttt = new Thread(new OccupiedCPUReadThread(lock));
-            ttt.start();
-            threadslist.add(ttt);
-        }
-        Thread.sleep(30000);
-
-        for(Thread t:threadslist){
-            t.interrupt();
-        }
+//        LockSupport.unpark(null);
+//        Thread.sleep(10000);
+//
+//        final HaStampLock lock = new HaStampLock();
+//
+//        new Thread() {
+//
+//            public void run() {
+//
+//                long readLong = lock.writeLock();
+//
+//                LockSupport.parkNanos(TimeUnit.NANOSECONDS.convert(1, TimeUnit.HOURS));
+//
+//                lock.unlockWrite(readLong);
+//
+//            }
+//
+//        }.start();
+//
+//        Thread.sleep(10000);
+//        List<Thread> threadslist=new ArrayList<>();
+//        Thread ttt = null;
+//        for (int i = 0; i < 32; ++i) {
+//
+//            ttt = new Thread(new OccupiedCPUReadThread(lock));
+//            ttt.start();
+//            threadslist.add(ttt);
+//        }
+//        Thread.sleep(30000);
+//
+//        for(Thread t:threadslist){
+//            t.interrupt();
+//        }
 
     }
 
@@ -58,18 +58,18 @@ public class StampTest {
 
         public void run() {
 
-            Thread.currentThread().interrupt();
-
-            long lockr = 0;
-            try {
-                lockr = lock.readLock();
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-
-            System.out.println(Thread.currentThread().getName() + " get read lock=" + lockr);
-
-            lock.unlockRead(lockr);
+//            Thread.currentThread().interrupt();
+//
+//            long lockr = 0;
+//            try {
+//                lockr = lock.readLock();
+//            } catch (Exception e) {
+//                e.printStackTrace();
+//            }
+//
+//            System.out.println(Thread.currentThread().getName() + " get read lock=" + lockr);
+//
+//            lock.unlockRead(lockr);
 
         }
 
