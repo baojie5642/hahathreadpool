@@ -277,21 +277,132 @@ public class MyQuickSort {
         }
     }
 
+    public void shell(int[] a, int left, int right) {
+        if (null == a) {
+            return;
+        } else if (a.length <= 0) {
+            return;
+        } else {
+            int i, h;
+            // 这里采用的是knuth步长
+            for (h = 1; h <= (right - left) / 9; h = 3 * h + 1) ;
+            // 将步长个数与比较次数一起使用，没有单独拿出来
+            // 代码来自<算法:c语言实现>
+            for (; h > 0; h = h / 3) {
+                for (i = left + h; i <= right; i++) {
+                    int j = i;
+                    int v = a[i];
+                    while ((j >= left + h) && v < a[j - h]) {
+                        a[j] = a[j - h];
+                        j = j - h;
+                    }
+                    a[j] = v;
+                }
+            }
+        }
+    }
+
+    private int[] hibbardStep(int length) {
+        int n, v;
+        int[] ks = new int[length];
+        for (n = 0; n < length; n++) {
+            v = (int) Math.pow(2, (n + 1)) - 1;
+            ks[n] = v;
+            if (v >= length) {
+                break;
+            }
+        }
+        int[] a = new int[n];
+        System.arraycopy(ks, 0, a, 0, n);
+        return a;
+    }
+
+    // 1969年由Knuth提出
+    // 实现简单,效率还可以
+    // 针对中小级别文件都可行
+    private int[] knuthStep(int length) {
+        int n, v;
+        int[] ks = new int[length];
+        for (n = 0; n < length; n++) {
+            v = ((int) Math.pow(3, (n + 1)) - 1) / 2;
+            ks[n] = v;
+            if (v >= length) {
+                break;
+            }
+        }
+        int[] a = new int[n];
+        System.arraycopy(ks, 0, a, 0, n);
+        return a;
+    }
+
+    // 已知的最好步长序列是由Sedgewick提出的(1,5,19,41,109,...)
+    // 塞奇威克(Sedgewick)步长序列函数,传入数组长度(最大分组个数不可超过数组长度)
+    private int[] sedgewick(int length) {
+        // 不清楚步长的数组中的容量是多少
+        // 但是如果使用容器还是需要转换的
+        int[] arr = new int[length];
+        int n;      //步长的总个数
+        int i = 0;  // 控制奇数位步长的值
+        int j = 0;  // 控制偶数位步长的值
+        for (n = 0; n < length; n++) {
+            // 偶数位上的值
+            if (n % 2 == 0) {
+                arr[n] = (int) (9 * (Math.pow(4, i) - Math.pow(2, i)) + 1);
+                i++;
+            } else {
+                // 偶数位上的值
+                arr[n] = (int) (Math.pow(2, j + 2) * (Math.pow(2, j + 2) - 3) + 1);
+                j++;
+            }
+            // 步长的最大值已经大于数组总长
+            // 跳出循环
+            if (arr[n] >= length) {
+                break;
+            }
+        }
+        int[] a = new int[n];
+        // 使用System.arraycopy复制数组
+        // 仅仅复制有效步长，也就是n个有效的
+        System.arraycopy(arr, 0, a, 0, n);
+        return a;
+    }
+
+    public void shellV2(int[] arr) {
+        // int[] sedgewick =knuthStep(arr.length);
+        int[] sedgewick = hibbardStep(arr.length);
+        // int[] sedgewick = sedgewick(arr.length);
+        // 还可以使用斐波那契步长,大家百度吧
+        int s, k, i, j, t;
+        for (s = sedgewick.length - 1; s >= 0; s--) {
+            for (k = 0; k < sedgewick[s]; k++) {
+                for (i = k + sedgewick[s]; i < arr.length; i += sedgewick[s]) {
+                    t = arr[i];
+                    j = i - sedgewick[s];
+                    while (j >= 0 && arr[j] > t) {
+                        arr[j + sedgewick[s]] = arr[j];
+                        j -= sedgewick[s];
+                    }
+                    arr[j + sedgewick[s]] = t;
+                }
+            }
+        }
+    }
+
     public static void main(String args[]) {
         MyQuickSort mqs = new MyQuickSort();
         ThreadLocalRandom random = ThreadLocalRandom.current();
-        int nums[] = new int[13];
-        for (int i = 0; i < 13; i++) {
-            int r = random.nextInt(2500);
+        int nums[] = new int[65535];
+        for (int i = 0; i < 65535; i++) {
+            int r = random.nextInt(65535);
             nums[i] = r;
         }
-        mqs.shardingBubble(nums, 0, nums.length - 1);
+        //mqs.shellV2(nums);
+        mqs.shell(nums, 0, nums.length - 1);
+        //mqs.insertionV2(nums, 0, nums.length - 1);
+        //mqs.shardingBubble(nums, 0, nums.length - 1);
         for (int n : nums) {
             System.out.println(n);
         }
-
-
     }
-
 
 }
