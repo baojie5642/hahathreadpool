@@ -13,15 +13,17 @@
     <properties>
         <logback.version>1.2.3</logback.version>
         <org.slf4j.version>1.7.25</org.slf4j.version>
-        <commons.lang3.verion>3.7</commons.lang3.verion>
-        <org.springframework.version>5.0.5.RELEASE</org.springframework.version>
-
-        <spring.data.redis.version>1.8.11.RELEASE</spring.data.redis.version>
-        <spring.data.jpa.version>1.11.11.RELEASE</spring.data.jpa.version>
-        <spring.data.keyvalue.version>1.2.11.RELEASE</spring.data.keyvalue.version>
-        <spring.data.commons.version>1.13.11.RELEASE</spring.data.commons.version>
-
-        <hikaricp.version>2.7.4</hikaricp.version>
+        <commons.lang3.verion>3.8</commons.lang3.verion>
+        <commons.io.verion>2.6</commons.io.verion>
+        <org.springframework.version>5.0.8.RELEASE</org.springframework.version>
+        <spring.data.redis.version>2.0.9.RELEASE</spring.data.redis.version>
+        <spring.data.jpa.version>2.0.9.RELEASE</spring.data.jpa.version>
+        <spring.data.keyvalue.version>2.0.9.RELEASE</spring.data.keyvalue.version>
+        <spring.data.commons.version>2.0.9.RELEASE</spring.data.commons.version>
+        <org.hibernate.version>5.3.5.Final</org.hibernate.version>
+        <org.hibernate.validator>6.0.12.Final</org.hibernate.validator>
+        <mysql.connector.version>8.0.12</mysql.connector.version>
+        <hikaricp.version>3.2.0</hikaricp.version>
 
     </properties>
     <dependencies>
@@ -36,11 +38,10 @@
             <version>3.1.6.RELEASE</version>
         </dependency>
 
-
         <dependency>
             <groupId>commons-io</groupId>
             <artifactId>commons-io</artifactId>
-            <version>2.6</version>
+            <version>${commons.io.verion}</version>
         </dependency>
 
         <!-- spring framework -->
@@ -211,6 +212,32 @@
             <groupId>com.squareup.okio</groupId>
             <artifactId>okio</artifactId>
             <version>1.15.0</version>
+        </dependency>
+        <dependency>
+            <groupId>org.hibernate</groupId>
+            <artifactId>hibernate-entitymanager</artifactId>
+            <version>${org.hibernate.version}</version>
+            <exclusions>
+                <exclusion>
+                    <artifactId>slf4j-api</artifactId>
+                    <groupId>org.slf4j</groupId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>org.hibernate</groupId>
+            <artifactId>hibernate-ehcache</artifactId>
+            <version>${org.hibernate.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.hibernate.validator</groupId>
+            <artifactId>hibernate-validator</artifactId>
+            <version>${org.hibernate.validator}</version>
+        </dependency>
+        <dependency>
+            <groupId>mysql</groupId>
+            <artifactId>mysql-connector-java</artifactId>
+            <version>${mysql.connector.version}</version>
         </dependency>
     </dependencies>
 </project>

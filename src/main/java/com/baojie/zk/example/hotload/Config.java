@@ -22,6 +22,9 @@ public class Config {
     private static final String DEFAULT_PROXY_IP = "127.0.0.1";
     private static final String DEFAULT_PROXY_PORT = "3128";
 
+    @HotReloadable("${page.query.page.size}")
+    private static volatile int pageSize = 1000;   //默认1000条
+
     @HotReloadable("${url.checkOCSUser}")
     private static volatile String ocsUrl = "base";
 
@@ -166,6 +169,7 @@ public class Config {
         lock.lock();
         try {
             log.debug("/*****************************  start print config info  *******************************/");
+            log.debug("get page size=" + pageSize());
             log.debug("getOcsUrl=" + getOcsUrl());
             log.debug("getJtcalcu=" + getJtcalcu());
             log.debug("getJtcharge=" + getJtcharge());
@@ -198,6 +202,15 @@ public class Config {
             log.debug("/*****************************  finish print config info  *******************************/");
         } finally {
             lock.unlock();
+        }
+    }
+
+    public static final int pageSize() {
+        int ps = pageSize;
+        if (0 >= ps) {
+            return 1000;
+        } else {
+            return ps;
         }
     }
 
