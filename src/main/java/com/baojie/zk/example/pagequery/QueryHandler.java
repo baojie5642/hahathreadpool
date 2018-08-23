@@ -10,6 +10,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 
 public class QueryHandler {
+
     private static final Logger log = LoggerFactory.getLogger(QueryHandler.class);
 
     private final EntityRepos repos;
