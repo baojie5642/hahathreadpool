@@ -24,7 +24,8 @@
         <org.hibernate.validator>6.0.12.Final</org.hibernate.validator>
         <mysql.connector.version>8.0.12</mysql.connector.version>
         <hikaricp.version>3.2.0</hikaricp.version>
-
+        <io.protostuff.version>1.6.0</io.protostuff.version>
+        <org.objenesis.version>2.6</org.objenesis.version>
     </properties>
     <dependencies>
         <dependency>
@@ -36,6 +37,12 @@
             <groupId>io.projectreactor</groupId>
             <artifactId>reactor-core</artifactId>
             <version>3.1.6.RELEASE</version>
+        </dependency>
+
+        <dependency>
+            <groupId>co.paralleluniverse</groupId>
+            <artifactId>quasar-core</artifactId>
+            <version>0.7.10</version>
         </dependency>
 
         <dependency>
@@ -238,6 +245,31 @@
             <groupId>mysql</groupId>
             <artifactId>mysql-connector-java</artifactId>
             <version>${mysql.connector.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.protostuff</groupId>
+            <artifactId>protostuff-core</artifactId>
+            <version>${io.protostuff.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.protostuff</groupId>
+            <artifactId>protostuff-api</artifactId>
+            <version>${io.protostuff.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.protostuff</groupId>
+            <artifactId>protostuff-runtime</artifactId>
+            <version>${io.protostuff.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.protostuff</groupId>
+            <artifactId>protostuff-collectionschema</artifactId>
+            <version>${io.protostuff.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.objenesis</groupId>
+            <artifactId>objenesis</artifactId>
+            <version>${org.objenesis.version}</version>
         </dependency>
     </dependencies>
 </project>
