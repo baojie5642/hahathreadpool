@@ -52,37 +52,17 @@ public class SpeedTest {
             map.put("d","d");
             test=new SpeedTest(i+"",i++,map);
 
-            Channel<byte[]> ch0= Channels.newChannel(4);
-            SerFiber sf=new SerFiber(test,ch0);
-            sf.start();
-            byte[] bs=null;
-            try {
-                bs=ch0.receive();
-            } catch (SuspendExecution suspendExecution) {
-                suspendExecution.printStackTrace();
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
+            byte[] bs=SerializeUtil.serialize(test);
             if(bs==null){
                 throw new NullPointerException();
             }
-            ch0.close();
-            Channel<SpeedTest> ch1= Channels.newChannel(4);
-            SpeedTest get=null;
-            DesFiber df=new DesFiber(SpeedTest.class,bs,ch1);
-            df.start();
-            try {
-                get=ch1.receive();
-            } catch (SuspendExecution suspendExecution) {
-                suspendExecution.printStackTrace();
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
+
+            SpeedTest get=SerializeUtil.deserialize(bs,SpeedTest.class);
+
             if(get==null){
                 throw new NullPointerException();
             }
-            ch1.close();
-            System.out.println(i);
+            System.out.println(get+"__"+i);
         }
     }
 
