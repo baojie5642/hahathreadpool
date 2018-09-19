@@ -1,4 +1,4 @@
-package com.baojie.zk.example.netty;
+package com.baojie.zk.example.netty.net;
 
 import com.baojie.zk.example.concurrent.seda_refactor_01.Bus;
 import io.netty.buffer.ByteBuf;
