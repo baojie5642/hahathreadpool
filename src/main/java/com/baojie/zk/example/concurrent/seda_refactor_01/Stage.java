@@ -19,6 +19,7 @@ import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
 
 public class Stage<B extends Bus> extends AbstractStageService {
+
     private static final Logger log = LoggerFactory.getLogger(Stage.class);
     private final AtomicInteger ctl = new AtomicInteger(ctlOf(RUNNING, 0));
     private static final int COUNT_BITS = Integer.SIZE - 3;
@@ -67,6 +68,7 @@ public class Stage<B extends Bus> extends AbstractStageService {
         } while (!compareAndDecrementWorkerCount(ctl.get()));
     }
 
+    private final static long DEFAULT_ALIVE=180;
     private final TimeUnit unit = TimeUnit.SECONDS;
     private final BlockingQueue<StageTask> workQueue;
     private final HashSet<Worker> workers = new HashSet<>();
