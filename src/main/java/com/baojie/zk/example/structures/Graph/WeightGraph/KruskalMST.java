@@ -1,6 +1,8 @@
 package com.baojie.zk.example.structures.Graph.WeightGraph;
 
-import com.zejian.structures.heap.MinHeap;
+
+
+import com.baojie.zk.example.structures.heap.MinHeap;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -24,7 +26,7 @@ public class KruskalMST<Weight extends Number & Comparable<Weight>> {
         assert graph != null;
         mst = new ArrayList<Edge<Weight>>();
 
-        MinHeap<Edge<Weight>>  pq = new MinHeap<Edge<Weight>>(graph.E());
+        MinHeap<Edge<Weight>> pq = new MinHeap<Edge<Weight>>(graph.E());
         //遍历所有边并加入pq
         for (int i = 0; i <graph.V() ; i++) {
             for (Object item: graph.adj(i)) {

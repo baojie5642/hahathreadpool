@@ -1,6 +1,7 @@
 package com.baojie.zk.example.structures.Graph.NoWeightGraph;
 
-import com.zejian.structures.LinkedList.MyCollection.MylinkeList;
+
+import com.baojie.zk.example.structures.LinkedList.MyCollection.MylinkeList;
 
 /**
  * Created by zejian on 2018/1/20.

@@ -1,6 +1,7 @@
 package com.baojie.zk.example.structures.Sort.Sort_N_2;
 
-import com.zejian.structures.Sort.SortTestHelper;
+
+import com.baojie.zk.example.structures.Sort.SortTestHelper;
 
 import java.util.Arrays;
 

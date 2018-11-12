@@ -1,6 +1,8 @@
 package com.baojie.zk.example.structures.Graph.WeightGraph;
 
-import com.zejian.structures.heap.IndexMinPQ;
+
+
+import com.baojie.zk.example.structures.heap.IndexMinPQ;
 
 import java.util.ArrayList;
 import java.util.List;

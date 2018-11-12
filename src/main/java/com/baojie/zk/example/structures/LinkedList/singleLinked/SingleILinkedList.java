@@ -1,7 +1,7 @@
 package com.baojie.zk.example.structures.LinkedList.singleLinked;
 
-import com.zejian.structures.LinkedList.ILinkedList;
 
+import com.baojie.zk.example.structures.LinkedList.ILinkedList;
 
 /**
  * Created by zejian on 2016/10/21.

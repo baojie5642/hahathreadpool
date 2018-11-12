@@ -1,12 +1,13 @@
 package com.baojie.zk.example.structures.LinkedList.SeqList;
 
-import com.zejian.structures.LinkedList.ISeqList;
+
+import com.baojie.zk.example.structures.LinkedList.ISeqList;
 
 /**
  * Created by zejian on 2016/10/29.
  * 顺序表
  */
-public class SeqList<T> implements ISeqList<T>{
+public class SeqList<T> implements ISeqList<T> {
 
     private Object[] table;                      //数组声明,用于存储元素
     private int length;                          //顺序表的大小
