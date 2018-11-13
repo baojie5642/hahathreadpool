@@ -26,8 +26,14 @@
         <hikaricp.version>3.2.0</hikaricp.version>
         <io.protostuff.version>1.6.0</io.protostuff.version>
         <org.objenesis.version>2.6</org.objenesis.version>
+        <pulsar.version>2.2.0</pulsar.version>
     </properties>
     <dependencies>
+        <dependency>
+            <groupId>org.apache.pulsar</groupId>
+            <artifactId>pulsar-client</artifactId>
+            <version>${pulsar.version}</version>
+        </dependency>
         <dependency>
             <groupId>org.jctools</groupId>
             <artifactId>jctools-core</artifactId>

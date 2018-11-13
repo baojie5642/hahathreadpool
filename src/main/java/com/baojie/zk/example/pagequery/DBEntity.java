@@ -2,11 +2,12 @@ package com.baojie.zk.example.pagequery;
 
 import org.hibernate.annotations.Cache;
 import org.hibernate.annotations.CacheConcurrencyStrategy;
+import org.hibernate.validator.constraints.NotBlank;
+import org.hibernate.validator.constraints.NotEmpty;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.persistence.*;
-import javax.validation.constraints.NotBlank;
 
 @Entity                                        // 标识此类是一个实体
 @Table(name = "big_cow_entity")                // 表名称
