@@ -47,7 +47,7 @@ public class BaojiePulsarClient {
         TimeUnit.SECONDS.sleep(3);
         producer.send("baojie pulsar sync message");
         for (; ; ) {
-            TimeUnit.SECONDS.sleep(3);
+            TimeUnit.SECONDS.sleep(3000);
             producer.sendAsync("baojie pulsar async message").thenAccept(msgId -> {
                 System.out.println("producer Message with ID %s successfully sent" + msgId);
             });

@@ -90,6 +90,7 @@ public class ConcurrentPool extends AbstractExecutorService {
     private static final RuntimePermission shutdownPerm = new RuntimePermission("modifyThread");
     private final AccessControlContext acc;
 
+    // 继承aqs主要是为了控制状态，并且实现是否可以忽略中断
     private final class Worker extends AbstractQueuedSynchronizer implements Runnable {
         private static final long serialVersionUID = 6138294804551838833L;
         final Thread thread;
