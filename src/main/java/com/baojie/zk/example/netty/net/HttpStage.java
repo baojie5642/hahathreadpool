@@ -63,7 +63,7 @@ public class HttpStage implements StageTask {
         try {
             httpReq.release();
         } finally {
-            ReferenceCountUtil.safeRelease(httpReq);
+
         }
     }
 

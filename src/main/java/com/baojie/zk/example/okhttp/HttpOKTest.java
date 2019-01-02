@@ -1,10 +1,8 @@
 package com.baojie.zk.example.okhttp;
 
-import okhttp3.Call;
-import okhttp3.Callback;
-import okhttp3.OkHttpClient;
-import okhttp3.Request;
-import okhttp3.Response;
+import com.baojie.zk.example.okhttp.util_00.CallBackUtil;
+import com.baojie.zk.example.okhttp.util_00.OkhttpUtil;
+import okhttp3.*;
 import okio.BufferedSource;
 import okio.Okio;
 
@@ -34,7 +32,7 @@ public class HttpOKTest {
     }
 
 
-    private final String url = "https://www.baidu.com/";
+    private final String url = "http://127.0.0.1:9123/test";
 
     public void test() {
         Request request = new Request.Builder()
@@ -71,12 +69,46 @@ public class HttpOKTest {
         HttpOKTest t = new HttpOKTest();
         //t.test();
 
-        File file = new File("/home/baojie/liuxin/work/test.txt");
-        try {
-            readString(new FileInputStream(file));
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+
+        OkhttpUtil.okHttpPost("http://127.0.0.1:9123/test", new CallBackUtil() {
+            @Override
+            public Object onParseResponse(Call call, Response response) {
+                try {
+                    String resp= response.body().string();
+                    System.out.println(resp);
+
+                    return resp;
+                } catch (IOException e) {
+                    new RuntimeException("failure");
+                    return "";
+                }
+            }
+
+            @Override
+            public void onFailure(Call call, Exception e) {
+                System.out.println("fail");
+            }
+
+            @Override
+            public void onResponse(Object response) {
+                try {
+                    System.out.println(response);
+
+
+                } catch (Throwable e) {
+                    new RuntimeException("failure");
+
+                }
+            }
+        });
+
+
+        //File file = new File("/home/baojie/liuxin/work/test.txt");
+        //try {
+        //    readString(new FileInputStream(file));
+        //} catch (IOException e) {
+        //    e.printStackTrace();
+        //}
 
 
 

@@ -305,6 +305,9 @@ public class ConcurrentPool extends AbstractExecutorService {
         for (; ; ) {
             int c = ctl.get();
             int rs = runStateOf(c);
+            // 说明如果是准备关闭状态，允许提交空的task
+            // 但是不允许提交新任务
+            // 如果提交的任务为空但是队列不为空那么继续从队列取任务然后执行
             if (rs >= SHUTDOWN && !(rs == SHUTDOWN && firstTask == null && null != workQueue.peek())) {
                 return false;
             }
@@ -332,6 +335,9 @@ public class ConcurrentPool extends AbstractExecutorService {
             final Thread t = w.thread;
             if (t != null) {
                 final ReentrantLock mainLock = this.mainLock;
+                // 在修改状态时进行了同步控制
+                // 我想修改的是，在修改状态时不要同步控制
+                // 考虑封装一个同步控制的状态小工具
                 mainLock.lock();
                 try {
                     int rs = runStateOf(ctl.get());
