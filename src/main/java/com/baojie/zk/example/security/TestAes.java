@@ -1,4 +1,5 @@
 package com.baojie.zk.example.security;
+
 import javax.crypto.Cipher;
 import javax.crypto.spec.SecretKeySpec;
 import java.security.MessageDigest;
@@ -8,13 +9,14 @@ public class TestAes {
     private static final String DEFAULT_CODING = "utf-8";
     private static final String MD5 = "MD5";
     private static final String AES = "AES";
+    private static final String PKCS = "AES/ECB/PKCS5Padding";
     private static final String BLANK = "";
 
-    public static String decrypt(String encrypted, String seed) {
+    public String decrypt(String encrypted, String seed) {
         if (null == encrypted || null == seed) {
             return BLANK;
         }
-        byte[] keyb = seed2Byte(seed);
+        byte[] keyb = getStrByte(seed);
         if (null == keyb) {
             return BLANK;
         }
@@ -27,7 +29,7 @@ public class TestAes {
             return BLANK;
         }
         SecretKeySpec skey = new SecretKeySpec(digest, AES);
-        Cipher dcipher = getAndInit(AES, skey);
+        Cipher dcipher = getDecpMode(AES, skey);
         if (null == dcipher) {
             return BLANK;
         }
@@ -39,16 +41,16 @@ public class TestAes {
         }
     }
 
-    private static byte[] seed2Byte(String seed) {
+    private byte[] getStrByte(String str) {
         try {
-            return seed.getBytes(DEFAULT_CODING);
+            return str.getBytes(DEFAULT_CODING);
         } catch (Throwable t) {
 
         }
         return null;
     }
 
-    private static MessageDigest getDigest(String tp) {
+    private MessageDigest getDigest(String tp) {
         try {
             return MessageDigest.getInstance(tp);
         } catch (Throwable t) {
@@ -57,7 +59,7 @@ public class TestAes {
         return null;
     }
 
-    private static Cipher getAndInit(String tp, SecretKeySpec skey) {
+    private Cipher getDecpMode(String tp, SecretKeySpec skey) {
         Cipher dcipher = getCipher(tp);
         if (null == dcipher) {
             return null;
@@ -71,7 +73,21 @@ public class TestAes {
         }
     }
 
-    private static Cipher getCipher(String tp) {
+    private Cipher getEncrMode(String tp, SecretKeySpec skey) {
+        Cipher dcipher = getCipher(tp);
+        if (null == dcipher) {
+            return null;
+        } else {
+            try {
+                dcipher.init(Cipher.ENCRYPT_MODE, skey);
+            } catch (Throwable t) {
+                return null;
+            }
+            return dcipher;
+        }
+    }
+
+    private Cipher getCipher(String tp) {
         try {
             return Cipher.getInstance(tp);
         } catch (Throwable t) {
@@ -80,7 +96,7 @@ public class TestAes {
         return null;
     }
 
-    private static byte[] doFinal(String encrypted, Cipher dcipher) {
+    private byte[] doFinal(String encrypted, Cipher dcipher) {
         try {
             return dcipher.doFinal(str2Byte(encrypted));
         } catch (Throwable t) {
@@ -89,27 +105,57 @@ public class TestAes {
         return null;
     }
 
-    public static String encrypt(String content, String key) throws Exception {
-        byte[] input = content.getBytes(DEFAULT_CODING);
+    public String encrypt(String content, String key) {
+        if (null == content || null == key) {
+            return BLANK;
+        }
+        byte[] input = getStrByte(content);
+        if (null == input) {
+            return BLANK;
+        }
+        MessageDigest md = getDigest(MD5);
+        byte[] kbs = getStrByte(key);
+        if (null == kbs) {
+            return BLANK;
+        }
+        byte[] digest = md.digest(kbs);
+        SecretKeySpec skc = new SecretKeySpec(digest, AES);
+        Cipher ecipher = getEncrMode(PKCS, skc);
+        if (null == ecipher) {
+            return BLANK;
+        }
+        byte[] cipherByte = new byte[ecipher.getOutputSize(input.length)];
 
-        MessageDigest md = MessageDigest.getInstance("MD5");
-        byte[] thedigest = md.digest(key.getBytes(DEFAULT_CODING));
-        SecretKeySpec skc = new SecretKeySpec(thedigest, "AES");
-        Cipher cipher = Cipher.getInstance("AES/ECB/PKCS5Padding");
-        cipher.init(Cipher.ENCRYPT_MODE, skc);
 
-        byte[] cipherText = new byte[cipher.getOutputSize(input.length)];
-        int ctLength = cipher.update(input, 0, input.length, cipherText, 0);
-        ctLength += cipher.doFinal(cipherText, ctLength);
-        return byte2Str(cipherText);
+        int ctLength = encrUpdate(input, cipherByte, ecipher);
+        if (0 > ctLength) {
+            return BLANK;
+        }
+        ctLength += encrDoFinal(cipherByte, ctLength, ecipher);
+        //debug
+        return byte2Str(cipherByte);
     }
 
-    public static void main(String[] args)  {
+    private int encrUpdate(byte[] input, byte[] cipherByte, Cipher ecipher) {
+        try {
+            return ecipher.update(input, 0, input.length, cipherByte, 0);
+        } catch (Throwable t) {
 
+        }
+        return -1;
     }
 
 
-    private static byte[] str2Byte(String hexString) {
+    private int encrDoFinal(byte[] cipherByte, int ctLength, Cipher ecipher) {
+        try {
+            return ecipher.doFinal(cipherByte, ctLength);
+        } catch (Throwable t) {
+
+        }
+        return -1;
+    }
+
+    private byte[] str2Byte(String hexString) {
         int len = hexString.length() / 2;
         byte[] result = new byte[len];
         for (int i = 0; i < len; i++) {
@@ -118,8 +164,8 @@ public class TestAes {
         return result;
     }
 
-    private static String byte2Str(byte buf[]) {
-        StringBuffer sb = new StringBuffer();
+    private String byte2Str(byte buf[]) {
+        StringBuilder sb = new StringBuilder();
         for (int i = 0; i < buf.length; i++) {
             String hex = Integer.toHexString(buf[i] & 0xFF);
             if (hex.length() == 1) {
@@ -129,10 +175,5 @@ public class TestAes {
         }
         return sb.toString();
     }
-
-//	public static void main(String[] args) throws Exception {
-//		System.out.println(AESForNodejs.encrypt("18918912192", "alipay")); //b101d8d30aaa8dcbf9b57ee173cf8d3c
-//
-//	}
 
 }
