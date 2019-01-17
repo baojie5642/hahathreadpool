@@ -68,7 +68,7 @@ public class Stage<B extends Bus> extends AbstractStageService {
         } while (!compareAndDecrementWorkerCount(ctl.get()));
     }
 
-    private final static long DEFAULT_ALIVE=180;
+    private final static long DEFAULT_ALIVE = 180;
     private final TimeUnit unit = TimeUnit.SECONDS;
     private final BlockingQueue<StageTask> workQueue;
     private final HashSet<Worker> workers = new HashSet<>();
@@ -123,8 +123,19 @@ public class Stage<B extends Bus> extends AbstractStageService {
         this.handler = new DirectFail();
     }
 
+    // 可以从stage中获取bus
+    // 并且进行了一些类型检查
     public B getBus() {
-        return (B) bus;
+        Bus temp = bus;
+        if (null == temp) {
+            throw new NullPointerException();
+        } else {
+            if (temp instanceof Bus) {
+                return (B) temp;
+            } else {
+                throw new IllegalArgumentException();
+            }
+        }
     }
 
     // 这里的worker要实现runnable，方便start回调

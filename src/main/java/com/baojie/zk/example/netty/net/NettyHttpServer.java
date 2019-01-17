@@ -31,15 +31,15 @@ public class NettyHttpServer {
 
     public NettyHttpServer() {
         if (enableEpoll) {
-            this.bossGroup = new EpollEventLoopGroup();
+            this.bossGroup = new EpollEventLoopGroup(1);
         } else {
-            this.bossGroup = new NioEventLoopGroup();
+            this.bossGroup = new NioEventLoopGroup(1);
         }
 
         if (enableEpoll) {
-            this.workerGroup = new EpollEventLoopGroup();
+            this.workerGroup = new EpollEventLoopGroup(1);
         } else {
-            this.workerGroup = new NioEventLoopGroup();
+            this.workerGroup = new NioEventLoopGroup(1);
         }
     }
 
