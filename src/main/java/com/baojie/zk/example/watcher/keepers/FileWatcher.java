@@ -75,9 +75,10 @@ public class FileWatcher implements Runnable {
     private boolean register() {
         // 针对当前文件的父文件夹进行监控
         // 不能对文件进行监控
-        Path parent = path.getParent();
+        // Path parent = path.getParent();
+        // 对应watcher的修改
         try {
-            parent.register(service, StandardWatchEventKinds.ENTRY_MODIFY);
+            path.register(service, StandardWatchEventKinds.ENTRY_MODIFY);
             return true;
         } catch (IOException e) {
             log.error(e.toString(), e);

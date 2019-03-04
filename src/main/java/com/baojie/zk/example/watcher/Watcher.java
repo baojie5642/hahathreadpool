@@ -137,7 +137,9 @@ public abstract class Watcher {
 
     private URI uri(Resource res) {
         try {
-            return res.getURI();
+            //return res.getURI();
+            // 修复bug,不能像上面那样获取uri,在某些linux环境下会出现,地址不透明的情况
+            return res.getFile().getParentFile().toURI();
         } catch (IOException e) {
             log.error(e.toString(), e);
         } catch (Throwable t) {
