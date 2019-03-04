@@ -26,4 +26,6 @@ captures/
 *.iml
 # Keystore files
 *.jks
-
+log/
+.log/
+*log
