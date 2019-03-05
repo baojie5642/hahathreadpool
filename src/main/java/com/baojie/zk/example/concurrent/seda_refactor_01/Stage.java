@@ -7,7 +7,9 @@ import org.slf4j.LoggerFactory;
 import java.security.AccessControlContext;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.SynchronousQueue;
@@ -334,35 +336,29 @@ public class Stage<B extends Bus> extends AbstractStageService {
                 c = ctl.get();
             }
         }
-        // 因为使用的sync阻塞队列
-        // 所以如果放入成功
-        // 那么说明已经已经被其他的线程获取到了
         if (isRunning(c) && workQueue.offer(task)) {
             int recheck = ctl.get();
-            // 这里不能随便remove
-            if (!isRunning(recheck)) {
-                // 不是弹性的工作队列才能够移除
-                if (!elas && remove(task)) {
-                    reject(task);
-                    return false;
-                } else {
-                    // 因为移除失败或者是弹性队列
-                    // 所以这里返回成功，因为任务已被消费
-                    tryTerminate();
-                    return true;
-                }
+            if (!isRunning(recheck) && remove(task)) {
+                // 如果删除成功了
+                // 一定是submit失败了
+                reject(task);
+                return false;
             } else if (workerCountOf(recheck) == 0) {
                 addWorker(null, false);
+                // submit成功
                 return true;
             } else {
-                // 具体这里的所属类别还要参考业务
+                // submit成功
                 return true;
             }
         } else if (!addWorker(task, false)) {
+            // 如果不是running或者offer失败并且add失败
+            // 那么submit失败
             reject(task);
             return false;
         } else {
-            // 具体这里的所属类别还要参考业务
+            // 因为上一个判断!addWorker没有执行
+            // 那么执行到这里一定是submit成功了
             return true;
         }
     }
@@ -578,6 +574,37 @@ public class Stage<B extends Bus> extends AbstractStageService {
             mainLock.unlock();
         }
         tryTerminate();
+    }
+
+    @Override
+    public List<StageTask> shutdownNow() {
+        List<StageTask> tasks;
+        final ReentrantLock mainLock = this.mainLock;
+        mainLock.lock();
+        try {
+            checkShutdownAccess();
+            advanceRunState(STOP);
+            interruptWorkers();
+            tasks = drainQueue();
+        } finally {
+            mainLock.unlock();
+        }
+        tryTerminate();
+        return tasks;
+    }
+
+    private List<StageTask> drainQueue() {
+        BlockingQueue<StageTask> q = workQueue;
+        ArrayList<StageTask> taskList = new ArrayList<>();
+        q.drainTo(taskList);
+        if (!q.isEmpty()) {
+            for (StageTask r : q.toArray(new StageTask[0])) {
+                if (q.remove(r)) {
+                    taskList.add(r);
+                }
+            }
+        }
+        return taskList;
     }
 
     @Override
