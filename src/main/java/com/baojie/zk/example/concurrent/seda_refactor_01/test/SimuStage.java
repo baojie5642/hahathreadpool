@@ -1,12 +1,12 @@
-package com.baojie.zk.example.concurrent.seda_refactor_01;
+package com.baojie.zk.example.concurrent.seda_refactor_01.test;
 
-import io.netty.handler.timeout.ReadTimeoutException;
+import com.baojie.zk.example.concurrent.seda_refactor_01.Stage;
+import com.baojie.zk.example.concurrent.seda_refactor_01.Stages;
+import com.baojie.zk.example.concurrent.seda_refactor_01.bus.Bus;
+import com.baojie.zk.example.concurrent.seda_refactor_01.task.Call;
 
-import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import java.util.concurrent.ThreadPoolExecutor;
 
 public class SimuStage {
 
@@ -21,12 +21,9 @@ public class SimuStage {
 
 
         Baojie bj = new Baojie();
-        Stage<Baojie> stage = new Stage<>(1, 1, 180, "baojie-stage", bj);
-        Baojie bus = stage.getBus();
-        if (bus instanceof Bus) {
-            System.out.println("ok");
-        }
-        Future<Long> future = stage.submit(new StageCall<Long>() {
+        Stage stage = Stages.newFixed(1, "baojie-stage", bj);
+
+        Future<Long> future = stage.submit(new Call<Long>() {
             @Override
             public Long call(Bus bus) {
                 return 17621211981L;

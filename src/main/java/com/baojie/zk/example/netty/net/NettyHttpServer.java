@@ -1,6 +1,7 @@
 package com.baojie.zk.example.netty.net;
 
 import com.baojie.zk.example.concurrent.seda_refactor_01.Stage;
+import com.baojie.zk.example.concurrent.seda_refactor_01.Stages;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelOption;
@@ -27,7 +28,7 @@ public class NettyHttpServer {
     private final EventLoopGroup workerGroup;   // 通过nio方式来接收连接和处理连接
     private final ServerBootstrap b = new ServerBootstrap();
     private final HttpBus hb = new HttpBus();
-    private final Stage<HttpBus> stage = new Stage<HttpBus>(1, 1, 180, "http_stage", hb);
+    private final Stage stage = Stages.newFixed(1, "http_stage", hb);
 
     public NettyHttpServer() {
         if (enableEpoll) {

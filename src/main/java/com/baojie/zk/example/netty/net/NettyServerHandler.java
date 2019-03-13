@@ -15,16 +15,16 @@ import java.util.concurrent.locks.LockSupport;
 
 public class NettyServerHandler extends ChannelInboundHandlerAdapter {
 
-    private final Stage<HttpBus> s;
+    private final Stage s;
 
-    public NettyServerHandler(Stage<HttpBus> s) {
+    public NettyServerHandler(Stage s) {
         this.s = s;
     }
 
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
         if (!(msg instanceof FullHttpRequest)) {
-            s.getBus().send(ctx, "未知请求!", HttpResponseStatus.BAD_REQUEST);
+            //s.getBus().send(ctx, "未知请求!", HttpResponseStatus.BAD_REQUEST);
         } else {
             LockSupport.parkNanos(TimeUnit.NANOSECONDS.convert(30, TimeUnit.SECONDS));
             //FullHttpRequest req = (FullHttpRequest) msg;

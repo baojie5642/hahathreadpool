@@ -1,14 +1,13 @@
 package com.baojie.zk.example.netty.net;
 
-import com.baojie.zk.example.concurrent.seda_refactor_01.Bus;
-import com.baojie.zk.example.concurrent.seda_refactor_01.StageTask;
+import com.baojie.zk.example.concurrent.seda_refactor_01.bus.Bus;
+import com.baojie.zk.example.concurrent.seda_refactor_01.task.Task;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpResponseStatus;
-import io.netty.util.ReferenceCountUtil;
 
-public class HttpStage implements StageTask {
+public class HttpStage implements Task {
 
     private final ChannelHandlerContext ctx;
     private final FullHttpRequest httpReq;

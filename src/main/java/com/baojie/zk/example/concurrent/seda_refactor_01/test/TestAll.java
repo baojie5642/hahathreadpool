@@ -1,4 +1,10 @@
-package com.baojie.zk.example.concurrent.seda_refactor_01;
+package com.baojie.zk.example.concurrent.seda_refactor_01.test;
+
+import com.baojie.zk.example.concurrent.seda_refactor_01.Stage;
+import com.baojie.zk.example.concurrent.seda_refactor_01.Stages;
+import com.baojie.zk.example.concurrent.seda_refactor_01.bus.Bus;
+import com.baojie.zk.example.concurrent.seda_refactor_01.future.StageFuture;
+import com.baojie.zk.example.concurrent.seda_refactor_01.task.Task;
 
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
@@ -9,14 +15,15 @@ import java.util.concurrent.locks.LockSupport;
 public class TestAll {
 
     public static void main(String args[]) {
-        Stage<World> stage = new Stage<>(1, 1, 300, true, "test", new World());
+        Stage stage = Stages.newNormal(5120, 5120, 3000,  "test", new World());
         AtomicInteger count = new AtomicInteger(0);
-        FutureAdaptor<AtomicInteger> future=null;
-        for(int j=0;j<2;j++){
-             future = stage.submit(new Task(count), count);
+        LockSupport.parkNanos(TimeUnit.NANOSECONDS.convert(15, TimeUnit.SECONDS));
+        StageFuture<AtomicInteger> future=null;
+        for(int j=0;j<2048;j++){
+             future = stage.submit(new LocalTask(count), count);
         }
 
-        for (int i = 0; i < 1; i++) {
+        for (int i = 0; i < 1024; i++) {
             Futu futu = new Futu(future);
             Thread thread = new Thread(futu);
             thread.start();
@@ -38,17 +45,17 @@ public class TestAll {
 
     }
 
-    public static final class Task implements StageTask {
+    public static final class LocalTask implements Task {
 
         private final AtomicInteger count;
 
-        public Task(AtomicInteger count) {
+        public LocalTask(AtomicInteger count) {
             this.count = count;
         }
 
         @Override
         public void task(Bus bus) {
-            LockSupport.parkNanos(TimeUnit.NANOSECONDS.convert(10, TimeUnit.SECONDS));
+            LockSupport.parkNanos(TimeUnit.NANOSECONDS.convert(30, TimeUnit.SECONDS));
             count.incrementAndGet();
         }
 
@@ -77,8 +84,8 @@ public class TestAll {
             if (null != count) {
                 System.out.println(count.get());
             }
-            if (future instanceof FutureAdaptor) {
-                Throwable cause = ((FutureAdaptor<?>) future).cause();
+            if (future instanceof StageFuture) {
+                Throwable cause = ((StageFuture<?>) future).cause();
 
                 if (null == cause) {
                     System.out.println("no error occur");

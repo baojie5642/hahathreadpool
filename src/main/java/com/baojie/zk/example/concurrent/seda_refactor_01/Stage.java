@@ -1,6 +1,11 @@
 package com.baojie.zk.example.concurrent.seda_refactor_01;
 
 import com.baojie.zk.example.concurrent.TFactory;
+import com.baojie.zk.example.concurrent.seda_refactor_01.bus.Bus;
+import com.baojie.zk.example.concurrent.seda_refactor_01.reject.StageRejected;
+import com.baojie.zk.example.concurrent.seda_refactor_01.future.AbstractStageService;
+import com.baojie.zk.example.concurrent.seda_refactor_01.service.StageExecutor;
+import com.baojie.zk.example.concurrent.seda_refactor_01.task.Task;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -8,19 +13,17 @@ import java.security.AccessControlContext;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.ArrayList;
+import java.util.ConcurrentModificationException;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.SynchronousQueue;
-import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.AbstractQueuedSynchronizer;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
 
-public class Stage<B extends Bus> extends AbstractStageService {
+public class Stage extends AbstractStageService {
 
     private static final Logger log = LoggerFactory.getLogger(Stage.class);
     private final AtomicInteger ctl = new AtomicInteger(ctlOf(RUNNING, 0));
@@ -70,15 +73,12 @@ public class Stage<B extends Bus> extends AbstractStageService {
         } while (!compareAndDecrementWorkerCount(ctl.get()));
     }
 
-    private final static long DEFAULT_ALIVE = 180;
-    private final TimeUnit unit = TimeUnit.SECONDS;
-    private final BlockingQueue<StageTask> workQueue;
+    private final BlockingQueue<Task> workQueue;
     private final HashSet<Worker> workers = new HashSet<>();
     private final ReentrantLock mainLock = new ReentrantLock();
     private final Condition termination = mainLock.newCondition();
     private final ThreadFactory threadFactory;
     private final StageRejected handler;
-    private final boolean elas;
     private final String name;
     private final Bus bus;
 
@@ -91,13 +91,8 @@ public class Stage<B extends Bus> extends AbstractStageService {
     private volatile boolean allowCoreThreadTimeOut;
     private static final RuntimePermission shutdownPerm = new RuntimePermission("modifyThread");
 
-    // 默认使用弹性队列,无任务缓存
-    public Stage(int core, int max, long keepAlive, String name, Bus bus) {
-        this(core, max, keepAlive, true, name, bus);
-    }
-
-    public Stage(int core, int max, long keepAlive, boolean elas, String name, Bus bus) {
-        if (core < 0 || max <= 0 || max < core || keepAlive < 0) {
+    public Stage(int core, int max, long keep, TimeUnit unit, BlockingQueue<Task> queue, String name, Bus bus) {
+        if (core < 0 || max <= 0 || max < core || keep < 0) {
             throw new IllegalArgumentException();
         }
         if (unit == null || name == null || bus == null) {
@@ -108,36 +103,15 @@ public class Stage<B extends Bus> extends AbstractStageService {
         if (!(bus instanceof Bus)) {
             throw new IllegalStateException();
         }
-        this.elas = elas;
-        this.acc = System.getSecurityManager() == null ? null : AccessController.getContext();
+        this.name = name;
+        this.workQueue = queue;
         this.corePoolSize = core;
         this.maximumPoolSize = max;
-        // 暂时不使用缓存队列
-        if (elas) {
-            this.workQueue = new SynchronousQueue<>();
-        } else {
-            this.workQueue = new LinkedBlockingQueue<>();
-        }
-        this.keepAliveTime = unit.toNanos(keepAlive);
-        this.name = name;
-        this.threadFactory = TFactory.create(name);
-        // 暂时实现直接失败的拒绝策略，简单
+        // 暂时实现直接失败的拒绝策略,简单
         this.handler = new DirectFail();
-    }
-
-    // 可以从stage中获取bus
-    // 并且进行了一些类型检查
-    public B getBus() {
-        Bus temp = bus;
-        if (null == temp) {
-            throw new NullPointerException();
-        } else {
-            if (temp instanceof Bus) {
-                return (B) temp;
-            } else {
-                throw new IllegalArgumentException();
-            }
-        }
+        this.keepAliveTime = unit.toNanos(keep);
+        this.threadFactory = TFactory.create(name);
+        this.acc = System.getSecurityManager() == null ? null : AccessController.getContext();
     }
 
     // 这里的worker要实现runnable，方便start回调
@@ -148,10 +122,10 @@ public class Stage<B extends Bus> extends AbstractStageService {
     private final class Worker extends AbstractQueuedSynchronizer implements Runnable {
         private static final long serialVersionUID = 6138294804551838833L;
         final Thread thread;
-        StageTask firstTask;
+        Task firstTask;
         volatile long completedTasks;
 
-        Worker(StageTask firstTask) {
+        Worker(Task firstTask) {
             setState(-1);
             this.firstTask = firstTask;
             this.thread = getThreadFactory().newThread(this);
@@ -322,7 +296,7 @@ public class Stage<B extends Bus> extends AbstractStageService {
     private static final boolean ONLY_ONE = true;
 
     @Override
-    public boolean execute(StageTask task) {
+    public boolean execute(Task task) {
         if (task == null) {
             return false;
         }
@@ -363,7 +337,10 @@ public class Stage<B extends Bus> extends AbstractStageService {
         }
     }
 
-    private boolean remove(StageTask task) {
+    public boolean remove(Task task) {
+        if (null == task) {
+            return false;
+        }
         boolean removed = workQueue.remove(task);
         tryTerminate();
         return removed;
@@ -371,7 +348,7 @@ public class Stage<B extends Bus> extends AbstractStageService {
 
     // 这里刚开始不去做task的判null
     // 因为允许先初始化线程线程等待任务执行
-    private final boolean addWorker(StageTask firstTask, boolean core) {
+    private final boolean addWorker(Task firstTask, boolean core) {
         retry:
         for (; ; ) {
             int c = ctl.get();
@@ -453,15 +430,15 @@ public class Stage<B extends Bus> extends AbstractStageService {
     private final void runWorker(Worker w) {
         // 这里的thread就是worker中的thread
         Thread wt = Thread.currentThread();
-        StageTask task = w.firstTask;
+        Task task = w.firstTask;
         w.firstTask = null;
         w.unlock();
         boolean completedAbruptly = true;
         try {
             while (task != null || (task = getTask()) != null) {
                 w.lock();
-                if ((runStateAtLeast(ctl.get(), STOP) || (Thread.interrupted() &&
-                        runStateAtLeast(ctl.get(), STOP))) && !wt.isInterrupted()) {
+                if ((runStateAtLeast(ctl.get(), STOP) || (Thread.interrupted() && runStateAtLeast(ctl.get(), STOP)))
+                        && !wt.isInterrupted()) {
                     wt.interrupt();
                 }
                 try {
@@ -493,7 +470,7 @@ public class Stage<B extends Bus> extends AbstractStageService {
         }
     }
 
-    private final StageTask getTask() {
+    private final Task getTask() {
         boolean timedOut = false;
         for (; ; ) {
             int c = ctl.get();
@@ -512,7 +489,7 @@ public class Stage<B extends Bus> extends AbstractStageService {
                 }
             }
             try {
-                StageTask r = timed ? workQueue.poll(keepAliveTime, TimeUnit.NANOSECONDS) : workQueue.take();
+                Task r = timed ? workQueue.poll(keepAliveTime, TimeUnit.NANOSECONDS) : workQueue.take();
                 if (r != null) {
                     return r;
                 } else {
@@ -555,7 +532,7 @@ public class Stage<B extends Bus> extends AbstractStageService {
         }
     }
 
-    private final void reject(StageTask command) {
+    private final void reject(Task command) {
         handler.reject(command, this, name);
     }
 
@@ -577,8 +554,8 @@ public class Stage<B extends Bus> extends AbstractStageService {
     }
 
     @Override
-    public List<StageTask> shutdownNow() {
-        List<StageTask> tasks;
+    public List<Task> shutdownNow() {
+        List<Task> tasks;
         final ReentrantLock mainLock = this.mainLock;
         mainLock.lock();
         try {
@@ -593,12 +570,12 @@ public class Stage<B extends Bus> extends AbstractStageService {
         return tasks;
     }
 
-    private List<StageTask> drainQueue() {
-        BlockingQueue<StageTask> q = workQueue;
-        ArrayList<StageTask> taskList = new ArrayList<>();
+    private List<Task> drainQueue() {
+        BlockingQueue<Task> q = workQueue;
+        ArrayList<Task> taskList = new ArrayList<>();
         q.drainTo(taskList);
         if (!q.isEmpty()) {
-            for (StageTask r : q.toArray(new StageTask[0])) {
+            for (Task r : q.toArray(new Task[0])) {
                 if (q.remove(r)) {
                     taskList.add(r);
                 }
@@ -679,14 +656,23 @@ public class Stage<B extends Bus> extends AbstractStageService {
     }
 
     public boolean prestartCoreThread() {
-        return workerCountOf(ctl.get()) < corePoolSize &&
-                addWorker(null, true);
+        return workerCountOf(ctl.get()) < corePoolSize && addWorker(null, true);
+    }
+
+    public void ensurePrestart() {
+        int wc = workerCountOf(ctl.get());
+        if (wc < corePoolSize) {
+            addWorker(null, true);
+        } else if (wc == 0) {
+            addWorker(null, false);
+        }
     }
 
     public int prestartAllCoreThreads() {
         int n = 0;
-        while (addWorker(null, true))
+        while (addWorker(null, true)) {
             ++n;
+        }
         return n;
     }
 
@@ -739,8 +725,22 @@ public class Stage<B extends Bus> extends AbstractStageService {
         return unit.convert(keepAliveTime, TimeUnit.NANOSECONDS);
     }
 
-    // 暂时仅仅去停止无用的多余线程
     public void purge() {
+        final BlockingQueue<Task> q = workQueue;
+        try {
+            Iterator<Task> it = q.iterator();
+            while (it.hasNext()) {
+                Task r = it.next();
+                if (r instanceof Future<?> && ((Future<?>) r).isCancelled()) {
+                    it.remove();
+                }
+            }
+        } catch (ConcurrentModificationException fallThrough) {
+            for (Object r : q.toArray())
+                if (r instanceof Future<?> && ((Future<?>) r).isCancelled()) {
+                    q.remove(r);
+                }
+        }
         tryTerminate();
     }
 
@@ -771,18 +771,18 @@ public class Stage<B extends Bus> extends AbstractStageService {
     }
 
     public int getLargestPoolSize() {
-        final ReentrantLock mainLock = this.mainLock;
-        mainLock.lock();
+        final ReentrantLock lock = this.mainLock;
+        lock.lock();
         try {
             return largestPoolSize;
         } finally {
-            mainLock.unlock();
+            lock.unlock();
         }
     }
 
     public long getTaskCount() {
-        final ReentrantLock mainLock = this.mainLock;
-        mainLock.lock();
+        final ReentrantLock lock = this.mainLock;
+        lock.lock();
         try {
             long n = completedTaskCount;
             for (Worker w : workers) {
@@ -793,28 +793,28 @@ public class Stage<B extends Bus> extends AbstractStageService {
             }
             return n + workQueue.size();
         } finally {
-            mainLock.unlock();
+            lock.unlock();
         }
     }
 
     public long getCompletedTaskCount() {
-        final ReentrantLock mainLock = this.mainLock;
-        mainLock.lock();
+        final ReentrantLock lock = this.mainLock;
+        lock.lock();
         try {
             long n = completedTaskCount;
             for (Worker w : workers)
                 n += w.completedTasks;
             return n;
         } finally {
-            mainLock.unlock();
+            lock.unlock();
         }
     }
 
     public String toString() {
         long ncompleted;
         int nworkers, nactive;
-        final ReentrantLock mainLock = this.mainLock;
-        mainLock.lock();
+        final ReentrantLock lock = this.mainLock;
+        lock.lock();
         try {
             ncompleted = completedTaskCount;
             nactive = 0;
@@ -826,7 +826,7 @@ public class Stage<B extends Bus> extends AbstractStageService {
                 }
             }
         } finally {
-            mainLock.unlock();
+            lock.unlock();
         }
         int c = ctl.get();
         String rs = (runStateLessThan(c, SHUTDOWN) ? "Running" :
@@ -841,11 +841,11 @@ public class Stage<B extends Bus> extends AbstractStageService {
                 "]";
     }
 
-    protected void beforeExecute(Thread t, StageTask r) {
+    protected void beforeExecute(Thread t, Task r) {
 
     }
 
-    protected void afterExecute(StageTask r, Throwable t) {
+    protected void afterExecute(Task r, Throwable t) {
         if (null == t) {
             return;
         } else {
@@ -868,7 +868,7 @@ public class Stage<B extends Bus> extends AbstractStageService {
         }
 
         @Override
-        public void reject(StageTask r, StageExecutor e, String reason) {
+        public void reject(Task r, StageExecutor e, String reason) {
             log.error("rejected stage task=" + r + ", stage name=" + reason);
         }
 

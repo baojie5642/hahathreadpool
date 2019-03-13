@@ -1,6 +1,6 @@
 package com.baojie.zk.example.netty.net;
 
-import com.baojie.zk.example.concurrent.seda_refactor_01.Bus;
+import com.baojie.zk.example.concurrent.seda_refactor_01.bus.Bus;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelFutureListener;

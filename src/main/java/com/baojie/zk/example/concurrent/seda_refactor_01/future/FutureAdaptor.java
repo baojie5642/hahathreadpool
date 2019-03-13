@@ -1,9 +1,13 @@
-package com.baojie.zk.example.concurrent.seda_refactor_01;
+package com.baojie.zk.example.concurrent.seda_refactor_01.future;
+
+import com.baojie.zk.example.concurrent.seda_refactor_01.bus.Bus;
+import com.baojie.zk.example.concurrent.seda_refactor_01.task.Call;
+import com.baojie.zk.example.concurrent.seda_refactor_01.task.Task;
 
 import java.util.concurrent.*;
 import java.util.concurrent.locks.LockSupport;
 
-public class StageFuture<V> implements TaskFuture<V> {
+public class FutureAdaptor<V> implements TaskFuture<V> {
 
     private volatile int state;
     private static final int NEW = 0;
@@ -19,7 +23,7 @@ public class StageFuture<V> implements TaskFuture<V> {
     /**
      * The underlying callable; nulled out after running
      */
-    private StageCall<V> callable;
+    private Call<V> callable;
     /**
      * The result to return or exception to throw from get()
      */
@@ -50,7 +54,7 @@ public class StageFuture<V> implements TaskFuture<V> {
         throw new ExecutionException((Throwable) x);
     }
 
-    public StageFuture(StageCall<V> callable) {
+    public FutureAdaptor(Call<V> callable) {
         if (callable == null) {
             throw new NullPointerException();
         }
@@ -58,17 +62,17 @@ public class StageFuture<V> implements TaskFuture<V> {
         this.state = NEW;       // ensure visibility of callable
     }
 
-    public StageFuture(StageTask task, V result) {
+    public FutureAdaptor(Task task, V result) {
         this.callable = new TaskAdapter(task, result);
         this.state = NEW;       // ensure visibility of callable
     }
 
-    private static final class TaskAdapter<T> implements StageCall<T> {
+    private static final class TaskAdapter<T> implements Call<T> {
 
-        final StageTask task;
+        final Task task;
         final T result;
 
-        TaskAdapter(StageTask task, T result) {
+        TaskAdapter(Task task, T result) {
             this.task = task;
             this.result = result;
         }
@@ -196,7 +200,7 @@ public class StageFuture<V> implements TaskFuture<V> {
             return;
         }
         try {
-            StageCall<V> c = callable;
+            Call<V> c = callable;
             if (!hasSubmit()) {
                 setException(new IllegalStateException("submit stage fail"));
             } else if (c != null && state == NEW) {
@@ -363,7 +367,7 @@ public class StageFuture<V> implements TaskFuture<V> {
     static {
         try {
             UNSAFE = LocalUnsafe.getUnsafe();
-            Class<?> k = StageFuture.class;
+            Class<?> k = FutureAdaptor.class;
             stateOffset = UNSAFE.objectFieldOffset
                     (k.getDeclaredField("state"));
             runnerOffset = UNSAFE.objectFieldOffset

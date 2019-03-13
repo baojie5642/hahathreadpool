@@ -12,9 +12,9 @@ import io.netty.handler.codec.http.HttpResponseEncoder;
 
 public class NettyServerFilter extends ChannelInitializer<SocketChannel> {
 
-    private final Stage<HttpBus> s;
+    private final Stage s;
 
-    public NettyServerFilter(Stage<HttpBus> s) {
+    public NettyServerFilter(Stage s) {
         this.s = s;
     }
 

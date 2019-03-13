@@ -1,4 +1,4 @@
-package com.baojie.zk.example.concurrent.seda_refactor_01;
+package com.baojie.zk.example.concurrent.seda_refactor_01.test;
 
 import com.baojie.zk.example.sleep.Sleep;
 import org.slf4j.Logger;

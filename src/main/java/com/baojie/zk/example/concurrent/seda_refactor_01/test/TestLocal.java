@@ -1,4 +1,4 @@
-package com.baojie.zk.example.concurrent.seda_refactor_01;
+package com.baojie.zk.example.concurrent.seda_refactor_01.test;
 
 import java.util.concurrent.*;
 import java.util.concurrent.locks.LockSupport;
