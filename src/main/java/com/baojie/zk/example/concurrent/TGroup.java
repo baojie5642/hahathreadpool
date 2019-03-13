@@ -16,7 +16,6 @@ public final class TGroup {
 		if (null != sm) {
 			tg = sm.getThreadGroup();
 		} else {
-			log.warn("SecurityManager can be null when get ThreadGroup, ignore this");
 			tg = Thread.currentThread().getThreadGroup();
 		}
 		if (null == tg) {
