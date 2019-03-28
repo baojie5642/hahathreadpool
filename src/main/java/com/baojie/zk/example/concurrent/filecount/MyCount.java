@@ -69,7 +69,7 @@ public class MyCount {
 
     public static void main(String args[]) {
         String dir = "/";
-        MyCount myCount = new MyCount(32);
+        MyCount myCount = new MyCount(72);
         long sum = myCount.sum(dir);
         System.out.println(dir + ":sum=" + sum);
     }
