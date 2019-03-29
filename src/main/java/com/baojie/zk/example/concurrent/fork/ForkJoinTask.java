@@ -1,5 +1,7 @@
 package com.baojie.zk.example.concurrent.fork;
 
+import com.baojie.zk.example.random.LocalUnsafe;
+
 import java.io.Serializable;
 import java.util.Collection;
 import java.util.List;
@@ -1398,7 +1400,7 @@ public abstract class ForkJoinTask<V> implements Future<V>, Serializable {
         exceptionTableRefQueue = new ReferenceQueue<Object>();
         exceptionTable = new ForkJoinTask.ExceptionNode[EXCEPTION_MAP_CAPACITY];
         try {
-            U = sun.misc.Unsafe.getUnsafe();
+            U = LocalUnsafe.getUnsafe();
             Class<?> k = ForkJoinTask.class;
             STATUS = U.objectFieldOffset
                     (k.getDeclaredField("status"));

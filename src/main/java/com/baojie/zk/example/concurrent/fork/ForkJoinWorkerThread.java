@@ -1,5 +1,7 @@
 package com.baojie.zk.example.concurrent.fork;
 
+import com.baojie.zk.example.random.LocalUnsafe;
+
 import java.security.AccessControlContext;
 import java.security.ProtectionDomain;
 
@@ -142,7 +144,7 @@ public class ForkJoinWorkerThread extends Thread {
     private static final long INHERITEDACCESSCONTROLCONTEXT;
     static {
         try {
-            U = sun.misc.Unsafe.getUnsafe();
+            U = LocalUnsafe.getUnsafe();
             Class<?> tk = Thread.class;
             THREADLOCALS = U.objectFieldOffset
                     (tk.getDeclaredField("threadLocals"));
@@ -207,13 +209,11 @@ public class ForkJoinWorkerThread extends Thread {
                 Class<?> gk = ThreadGroup.class;
                 long tg = u.objectFieldOffset(tk.getDeclaredField("group"));
                 long gp = u.objectFieldOffset(gk.getDeclaredField("parent"));
-                ThreadGroup group = (ThreadGroup)
-                        u.getObject(Thread.currentThread(), tg);
+                ThreadGroup group = (ThreadGroup) u.getObject(Thread.currentThread(), tg);
                 while (group != null) {
                     ThreadGroup parent = (ThreadGroup)u.getObject(group, gp);
                     if (parent == null)
-                        return new ThreadGroup(group,
-                                "InnocuousForkJoinWorkerThreadGroup");
+                        return new ThreadGroup(group, "InnocuousForkJoinWorkerThreadGroup");
                     group = parent;
                 }
             } catch (Exception e) {
