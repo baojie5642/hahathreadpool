@@ -63,7 +63,9 @@ public abstract class Watcher {
         DefaultResourceLoader loader = new DefaultResourceLoader();
         for (PropertySource<?> source : target) {
             String name = source.getName();
-            if (contains(name)) {
+            // 由于在加载config时候存在两个:classpath与file:./两种
+            // 为防止重复加载,所以添加classpath判断
+            if (contains(name)&&name.contains("classpath")) {
                 doWatch(name, loader, refresher);
             }
         }
