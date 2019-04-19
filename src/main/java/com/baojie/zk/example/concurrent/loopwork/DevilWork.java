@@ -1,6 +1,10 @@
 package com.baojie.zk.example.concurrent.loopwork;
 
 import com.baojie.zk.example.concurrent.TFactory;
+import com.baojie.zk.example.concurrent.memory.MemRun;
+import com.baojie.zk.example.util.LoggerMaker;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -11,7 +15,7 @@ import java.util.concurrent.locks.LockSupport;
 import java.util.concurrent.locks.ReentrantLock;
 
 public class DevilWork {
-
+    private static final Logger log = LoggerMaker.logger();
     private static final int N_CPU = Runtime.getRuntime().availableProcessors();
     private static final int DEFAULT_WORK_NUM = 4;
     private static final int SIGNAL_NUM = 8;

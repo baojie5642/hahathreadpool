@@ -6,6 +6,7 @@ import com.baojie.zk.example.concurrent.seda_refactor_01.reject.StageRejected;
 import com.baojie.zk.example.concurrent.seda_refactor_01.future.AbstractStageService;
 import com.baojie.zk.example.concurrent.seda_refactor_01.service.StageExecutor;
 import com.baojie.zk.example.concurrent.seda_refactor_01.task.Task;
+import com.baojie.zk.example.util.LoggerMaker;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -25,7 +26,7 @@ import java.util.concurrent.locks.ReentrantLock;
 
 public class Stage extends AbstractStageService {
 
-    private static final Logger log = LoggerFactory.getLogger(Stage.class);
+    private static final Logger log = LoggerMaker.logger();
     private final AtomicInteger ctl = new AtomicInteger(ctlOf(RUNNING, 0));
     private static final int COUNT_BITS = Integer.SIZE - 3;
     private static final int CAPACITY = (1 << COUNT_BITS) - 1;
@@ -103,6 +104,7 @@ public class Stage extends AbstractStageService {
         if (!(bus instanceof Bus)) {
             throw new IllegalStateException();
         }
+        log.debug("for test logger maker");
         this.name = name;
         this.workQueue = queue;
         this.corePoolSize = core;

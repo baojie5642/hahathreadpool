@@ -5,7 +5,7 @@ import org.slf4j.LoggerFactory;
 import sun.misc.Unsafe;
 
 public class LocalSystem {
-    private static final Logger log = LoggerFactory.getLogger(LocalSystem.class);
+    private static final Logger log = LoggerMaker.logger();
 
     public static final String JAVA_SPECIFICATION_VERSION = getSystemProperty("java.specification.version");
 
