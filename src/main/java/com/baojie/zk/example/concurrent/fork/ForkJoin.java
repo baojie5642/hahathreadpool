@@ -13,7 +13,7 @@ import java.util.List;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
 
-@sun.misc.Contended
+//@sun.misc.Contended
 public class ForkJoin extends AbstractExecutorService {
     /**
      * If there is a security manager, makes sure caller has
@@ -108,7 +108,7 @@ public class ForkJoin extends AbstractExecutorService {
      * arrays sharing cache lines. The @Contended annotation alerts
      * JVMs to try to keep instances apart.
      */
-    @sun.misc.Contended
+    //@sun.misc.Contended
     static final class WorkQueue {
 
         /**

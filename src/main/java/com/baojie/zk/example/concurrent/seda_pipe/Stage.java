@@ -1,22 +1,19 @@
-package com.baojie.zk.example.concurrent.seda_refactor_01;
+package com.baojie.zk.example.concurrent.seda_pipe;
 
 import com.baojie.zk.example.concurrent.TFactory;
-import com.baojie.zk.example.concurrent.seda_refactor_01.bus.Bus;
-import com.baojie.zk.example.concurrent.seda_refactor_01.reject.StageRejected;
-import com.baojie.zk.example.concurrent.seda_refactor_01.future.AbstractStageService;
-import com.baojie.zk.example.concurrent.seda_refactor_01.service.StageExecutor;
-import com.baojie.zk.example.concurrent.seda_refactor_01.task.Task;
+import com.baojie.zk.example.concurrent.seda_pipe.bus.Bus;
+import com.baojie.zk.example.concurrent.seda_pipe.future.AbstractStageService;
+import com.baojie.zk.example.concurrent.seda_pipe.reject.StageRejected;
+import com.baojie.zk.example.concurrent.seda_pipe.service.StageExecutor;
+import com.baojie.zk.example.concurrent.seda_pipe.status.PipeStatus;
+import com.baojie.zk.example.concurrent.seda_pipe.task.Task;
 import com.baojie.zk.example.util.LoggerMaker;
 import org.slf4j.Logger;
 
 import java.security.AccessControlContext;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
-import java.util.ArrayList;
-import java.util.ConcurrentModificationException;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.AbstractQueuedSynchronizer;
@@ -90,6 +87,40 @@ public class Stage extends AbstractStageService {
     private final AccessControlContext acc;
     private volatile boolean allowCoreThreadTimeOut;
     private static final RuntimePermission shutdownPerm = new RuntimePermission("modifyThread");
+
+    private volatile PipeStatus status = PipeStatus.NORMAL;
+    private final ReentrantLock statusLock = new ReentrantLock();
+
+    //
+    private final SynchronousQueue<Task> cachedQueue=new SynchronousQueue<>();
+    private final LinkedBlockingQueue<Task> otherPipeQueues=new LinkedBlockingQueue<>();
+
+
+    // 仅仅是想法的记录还有很多想到了要改
+    // 但是最近一段时间有其他事情，so，等等吧
+    public final PipeStatus setStatus(final PipeStatus will) {
+        if (null == will) {
+            return status;
+        }
+        PipeStatus now = status;
+        if (now != will) {
+            final ReentrantLock lock = statusLock;
+            boolean get = false;
+            try {
+                get = lock.tryLock();
+                if (get) {
+                    if (status != will) {
+                        status = will;
+                    }
+                }
+            } finally {
+                if (get) {
+                    lock.unlock();
+                }
+            }
+        }
+        return will;
+    }
 
     public Stage(int core, int max, long keep, TimeUnit unit, BlockingQueue<Task> queue, String name, Bus bus) {
         if (core < 0 || max <= 0 || max < core || keep < 0) {
