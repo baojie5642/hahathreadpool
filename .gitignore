@@ -29,3 +29,5 @@ captures/
 log/
 .log/
 *log
+*.idea
+.idea
